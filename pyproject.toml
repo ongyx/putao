@@ -1,0 +1,22 @@
+[build-system]
+requires = ["flit_core >=2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.metadata]
+module = "putao"
+author = "Ong Yong Xin"
+author-email = "ongyongxin2020+github@gmail.com"
+home-page = "https://github.com/ongyx/putao"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+description-file = "README.md"
+requires = [
+    "mido>=1.2.9",
+    "numpy>=1.20.1",
+    "SoundFile>=0.10.3.post1",
+    "sox>=1.4.1",
+]
+requires-python = ">=3.6"
