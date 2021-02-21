@@ -29,9 +29,11 @@ Currently, the only way to do this is to use a special markup:
 ```
 
 `syllable`: alphanumerical name of syllable to sing (without spacing)
+
 `note`: what pitch to sing the syllable at in the format `(key)(octave)`
 where key must be one of `c c# d d# e f f# g g# a bb b`, and octave is an integer.
 The key may be upper or lowercase.
+
 `duration`: how long to hold the note for as an int/float
 
 i.e
