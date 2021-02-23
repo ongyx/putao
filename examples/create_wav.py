@@ -4,8 +4,7 @@ import numpy as np
 
 import soundfile
 
-import putao
-
+from putao import core
 
 # create sine wave
 sample_rate = 44100
@@ -13,6 +12,8 @@ y = np.sin(2 * np.pi * 440.0 * np.arange(sample_rate * 1.0) / sample_rate)
 
 soundfile.write("sine.wav", y, sample_rate)
 
-song = putao.Song.from_file("megalovania.txt", voicebank=".")
+lyrics = ["sine" for _ in range(11 * 4)]
 
-song.render("./test.wav")
+project = core.Project()
+project.create(lyrics, open("megalovania.mml", "rb").read(), "mml")
+project.render("megalovania.wav")
