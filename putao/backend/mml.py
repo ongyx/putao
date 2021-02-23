@@ -143,7 +143,7 @@ class Interpreter:
                 self.octave += token.value
 
 
-def load(data):
+def loads(data):
     itpr = Interpreter(data.decode("utf8"))
     for note in itpr.execute():
         yield note

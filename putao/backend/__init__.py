@@ -1,7 +1,7 @@
 # coding: utf8
 """Backends provide an abstraction between a source of music notes and putao's song architecture.
 
-Each backend must have a load() function that accepts a single argument 'data' with type 'bytes'.
+Each backend must have a loads() function that accepts a single argument 'data' with type 'bytes'.
 For each note, this function must yield a dict:
 
 {
@@ -14,19 +14,23 @@ For each note, this function must yield a dict:
 import importlib
 import pathlib
 import sys
+from typing import IO
 
 BACKENDS = [
     p.stem for p in pathlib.Path(__file__).parent.glob("*.py") if p.stem != "__init__"
 ]
 
 
-def load(data: bytes, fmt: str) -> dict:
+def loads(data: bytes, fmt: str) -> dict:
     """Load data according to fmt.
 
     Args:
         data: The music data to load.
         fmt: Which backend to use to load the music data.
             Available backends are in BACKENDS.
+
+    Returns:
+        The data as a project dict.
     """
 
     module = f"putao.backend.{fmt}"
@@ -35,4 +39,19 @@ def load(data: bytes, fmt: str) -> dict:
     else:
         backend = importlib.import_module(module)
 
-    return {"notes": [n for n in backend.load(data)]}  # type: ignore
+    return {"notes": [n for n in backend.loads(data)]}  # type: ignore
+
+
+def load(fp: IO, *args) -> dict:
+    """Load data from fp according to fmt.
+
+    Args:
+        fp: The file to read data from.
+            It must be opened in bytes mode ('rb').
+        *args: Passed to loads().
+
+    Returns:
+        The data as a project dict.
+    """
+
+    return loads(fp.read(), *args)

@@ -205,7 +205,7 @@ class Project:
                 Currently, only 'mml' is supported.
         """
 
-        project_data = backend.load(data, fmt)
+        project_data = backend.loads(data, fmt)
         count = 0
         for lyric in lyrics:
             note = project_data["notes"][count]
