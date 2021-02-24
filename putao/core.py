@@ -5,6 +5,7 @@ import json
 import logging
 import pathlib
 import tempfile
+from collections.abc import Mapping
 from typing import List, Tuple, Union
 
 import numpy as np
@@ -111,30 +112,53 @@ class LyricalNote(Note):
         return tfm.build_array(input_array=wav, sample_rate_in=sample_rate), sample_rate
 
 
-class Project:
-    """A project composed of notes.
+class Voicebank(Mapping):
+    """A voicebank.
 
     Args:
-        voicebank: The path to the voicebank to use.
+        path: The path to the voicebank.
 
     Attributes:
-        notes (List[Lyric]): The notes in the project.
+        path: See args.
+        config: The voicebank's config.
     """
 
-    def __init__(self, voicebank: Union[str, pathlib.Path] = "."):
-        self._voicebank = pathlib.Path(voicebank)
+    def __init__(self, path: Union[str, pathlib.Path]):
+        self.path = pathlib.Path(path)
 
-        with (self._voicebank / VOICEBANK_CONFIG).open() as f:
-            self._config = json.load(f)
+        with (self.path / VOICEBANK_CONFIG).open() as f:
+            self.config = json.load(f)
 
+    def __getitem__(self, key):
+        return self.config[key]
+
+    def __iter__(self):
+        return iter(self.config)
+
+    def __len__(self):
+        return len(self.config)
+
+
+class Track:
+    """A track composed of notes.
+
+    Args:
+        voicebank: The voicebank object to use.
+
+    Attributes:
+        notes (List[Lyric]): The notes in the track.
+    """
+
+    def __init__(self, voicebank: Voicebank):
+        self._voicebank = voicebank
         self.notes: List[Note] = []
 
     @property
     def syllables(self):
-        return set(self._config["syllables"])
+        return set(self._voicebank["syllables"])
 
     def note(self, syllable: str, pitch: int, duration: float):
-        """Add notes to the project.
+        """Add notes to the track.
 
         Args:
             syllable: The syllable to use.
@@ -151,7 +175,7 @@ class Project:
         if syllable not in self.syllables:
             raise LyricError(f"syllable {syllable} does not exist")
 
-        syllable_note = self._config["syllables"][syllable]
+        syllable_note = self._voicebank["syllables"][syllable]
 
         syllable_pitch = utils.semitone(syllable_note)
 
@@ -160,7 +184,7 @@ class Project:
 
         self.notes.append(
             LyricalNote(
-                self._voicebank / f"{syllable}.wav",
+                self._voicebank.path / f"{syllable}.wav",
                 pitch - syllable_pitch,
                 duration,
             )
@@ -176,47 +200,8 @@ class Project:
 
         self.notes.append(Rest(0, duration))
 
-    def dump_dict(self) -> dict:
-        """Dump this project file, as a dict."""
-
-        return {"notes": [note.dump() for note in self.notes]}
-
-    def load_dict(self, data: dict):
-        """Load a putao project file, as a dict.
-
-        Args:
-            data: The dict to load.
-        """
-
-        for note in data["notes"]:
-            if note["type"] == "rest":
-                self.rest(note["duration"])
-            else:
-                self.note(*[note[f] for f in ("syllable", "pitch", "duration")])
-
-    def create(self, lyrics: List[str], data: bytes, fmt: str):
-        """Initalise this project with external data.
-
-        Args:
-            lyrics: Syllables to add to the project.
-                Each syllable is mapped to one lyric.
-            data: The source to load the notes from as bytes.
-            fmt: The format of the source.
-                Currently, only 'mml' is supported.
-        """
-
-        project_data = backend.loads(data, fmt)
-        count = 0
-        for lyric in lyrics:
-            note = project_data["notes"][count]
-            if note["type"] != "rest":
-                project_data["notes"][count]["syllable"] = lyric
-            count += 1
-
-        self.load_dict(project_data)
-
     def render(self, path: Union[str, pathlib.Path]):
-        """Render this project to a wav file.
+        """Render this track to a wav file.
 
         Args:
             path: The path to the wav file.
@@ -237,3 +222,96 @@ class Project:
 
             cbn = sox.Combiner()
             cbn.build(wavfiles, str(path), "concatenate")
+
+
+class Project:
+    """A project made of multiple tracks."""
+
+    def __init__(self, voicebank: Union[str, pathlib.Path] = "."):
+
+        self.voicebank = Voicebank(voicebank)
+        self.tracks: List[Track] = []
+
+    def new_track(self) -> Track:
+        """Create a new track in this project.
+
+        Returns:
+            The track object.
+        """
+
+        self.tracks.append(Track(self.voicebank))
+        return self.tracks[-1]
+
+    def dump_dict(self) -> dict:
+        """Dump this project file, as a dict."""
+
+        return {
+            "tracks": [[note.dump() for note in track.notes] for track in self.tracks]
+        }
+
+    def load_dict(self, data: dict):
+        """Load a putao project file, as a dict.
+
+        Args:
+            data: The dict to load.
+        """
+
+        for track in data["tracks"]:
+
+            track_obj = self.new_track()
+
+            for note in track:
+
+                if note["type"] == "rest":
+                    track_obj.rest(note["duration"])
+                else:
+                    track_obj.note(
+                        *[note[f] for f in ("syllable", "pitch", "duration")]
+                    )
+
+    def create(self, lyrics: List[List[str]], data: bytes, fmt: str):
+        """Initalise this project with external data.
+
+        Args:
+            lyrics: A list of list of lyrics to add.
+                The outer list maps to tracks, and the inner list maps to notes.
+            data: The source to load the notes from as bytes.
+            fmt: The format of the source.
+                Currently, only 'mml' is supported.
+        """
+
+        project_data = backend.loads(data, fmt)
+        count = 0
+
+        for track_num, track in enumerate(lyrics):
+            for lyric in track:
+                note = project_data[track_num][count]
+                if note["type"] != "rest":
+                    project_data[track_num][count]["syllable"] = lyric
+                count += 1
+
+        self.load_dict({"tracks": project_data})
+
+    def render(self, path: Union[str, pathlib.Path]):
+        """Render all tracks in this project to a single wavfile.
+
+        Args:
+            path: Where to save the rendered wavfile.
+        """
+
+        if len(self.tracks) < 2:
+            self.tracks[0].render(path)
+            return
+
+        track_paths = []
+        cbn = sox.Combiner()
+
+        with tempfile.TemporaryDirectory() as _tempdir:
+            tempdir = pathlib.Path(_tempdir)
+
+            for count, track in enumerate(self.tracks):
+                track_path = tempdir / f"{count}.wav"
+                track_paths.append(str(track_path))
+                track.render(track_path)
+
+            cbn.build(track_paths, str(path), "mix")

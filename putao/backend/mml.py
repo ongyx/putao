@@ -1,7 +1,9 @@
 # coding: utf8
 """MMML/M3L (Modern Music Macro Language) parser (with a generous serving of regex).
 
-TODO: Add support for the 'v' (volume) command.
+TODO:
+    Add support for the 'v' (volume) command.
+    Multiple tracks (using @ notation).
 """
 
 import re
@@ -34,6 +36,45 @@ class Token:
         return f"Token(type={self.type}, value={self.value})"
 
 
+def _parse(token_type, raw_value):
+    if token_type == "note":
+        try:
+            key, length = raw_value
+        except ValueError:
+            key = raw_value[0]
+            length = "0"
+
+        value = (key, int(length))
+
+    elif token_type == "rest":
+        if not raw_value:
+            value = 0
+        else:
+            value = int(raw_value[0])
+
+    elif token_type == "prop":
+        prop, value = raw_value
+        value = (prop, int(value))
+
+    elif token_type == "octave_step":
+        step = raw_value[0]
+        if step == ">":
+            value = 1
+        else:
+            value = -1
+
+    elif token_type == "comment":
+        value = raw_value[0]
+
+    elif token_type == "ignore":
+        return
+
+    elif token_type == "invalid":
+        raise ValueError
+
+    return value
+
+
 def tokenize(mml: str) -> Generator[Token, None, None]:
     """Turn a string of MML commands into tokens.
 
@@ -53,44 +94,15 @@ def tokenize(mml: str) -> Generator[Token, None, None]:
         # we don't want the full string, just the groups
         raw_value = [v for v in match.groups() if v is not None][1:]
 
-        value: Any
-
-        if token_type == "note":
-            try:
-                key, length = raw_value
-            except ValueError:
-                key = raw_value[0]
-                length = "0"
-
-            value = (key, int(length))
-
-        elif token_type == "rest":
-            if not raw_value:
-                value = 0
-            else:
-                value = int(raw_value[0])
-
-        elif token_type == "prop":
-            prop, value = raw_value
-            value = (prop, int(value))
-
-        elif token_type == "octave_step":
-            step = raw_value[0]
-            if step == ">":
-                value = 1
-            else:
-                value = -1
-
-        elif token_type == "comment":
-            value = raw_value[0]
-
-        elif token_type == "ignore":
-            continue
-
-        elif token_type == "invalid":
+        try:
+            value: Any = _parse(token_type, raw_value)
+        except ValueError:
             raise ValueError(
                 f"invalid token: {match.string[match.start():match.end()]}"
             )
+
+        if value is None:
+            continue
 
         yield Token(token_type, value)
 
@@ -145,5 +157,5 @@ class Interpreter:
 
 def loads(data):
     itpr = Interpreter(data.decode("utf8"))
-    for note in itpr.execute():
-        yield note
+    # only one track for now
+    return [[note for note in itpr.execute()]]

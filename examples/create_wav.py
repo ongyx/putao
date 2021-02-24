@@ -15,5 +15,5 @@ soundfile.write("sine.wav", y, sample_rate)
 lyrics = ["sine" for _ in range(11 * 4)]
 
 project = core.Project()
-project.create(lyrics, open("megalovania.mml", "rb").read(), "mml")
+project.create([lyrics], open("megalovania.mml", "rb").read(), "mml")
 project.render("megalovania.wav")
