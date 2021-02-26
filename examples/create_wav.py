@@ -6,14 +6,17 @@ import soundfile
 
 from putao import core
 
+song = "megalovania"
+notes = 44
+# notes = 27
+
 # create sine wave
-sample_rate = 44100
-y = np.sin(2 * np.pi * 440.0 * np.arange(sample_rate * 1.0) / sample_rate)
+y = np.sin(2 * np.pi * 440.0 * np.arange(core.SAMPLE_RATE * 1.0) / core.SAMPLE_RATE)
 
-soundfile.write("sine.wav", y, sample_rate)
+soundfile.write("sine.wav", y, core.SAMPLE_RATE)
 
-lyrics = ["sine" for _ in range(11 * 4)]
+lyrics = ["sine" for _ in range(notes)]
 
 project = core.Project()
-project.create([lyrics], open("megalovania.mml", "rb").read(), "mml")
-project.render("megalovania.wav")
+project.create([lyrics], open(f"{song}.mml", "rb").read(), "mml")
+project.render(f"{song}.wav")

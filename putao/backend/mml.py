@@ -14,7 +14,7 @@ from putao import utils
 
 
 TOKENS = {
-    "note": r"([cdefgab][#b]?)(\d+)?",
+    "note": r"([cdefgab][#\+\-]?)(\d+)?",
     "rest": r"[rp](\d+)?",
     "prop": r"([olt])(\d+)",
     "octave_step": r"([<>])",
@@ -123,6 +123,7 @@ class Interpreter:
             if token.type == "note":
 
                 note, length = token.value
+                note = note.replace("+", "#").replace("-", "b")
 
                 yield {
                     "type": "note",

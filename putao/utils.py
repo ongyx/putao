@@ -3,9 +3,12 @@
 import collections
 import math
 import re
-from typing import Optional
+import tempfile
+from typing import Optional, Tuple
 
 import numpy as np
+import soundfile
+import sox
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
@@ -63,6 +66,7 @@ def semitone_to_hz(semitone: int) -> float:
 
 def pitch(wav: np.ndarray, sr: int) -> float:
     """Calculate the pitch of a wavfile using autocorrelation.
+    (This does not work yet.)
 
     Args:
         wav: The wavfile as a numpy array.
@@ -86,3 +90,21 @@ def pitch(wav: np.ndarray, sr: int) -> float:
     pitch_semitones = (12 * math.log2(pitch_hz / 440)) + 49
 
     return pitch_semitones
+
+
+class Combiner(sox.Combiner):
+    def build_array(self, *args, **kwargs) -> Tuple[np.ndarray, int]:
+        """Combine wavfiles and build them into a numpy array.
+
+        Args:
+            *args: Passed to self.build().
+            **kwargs: Passed to self.build().
+
+        Returns:
+            The numpy array and its sample rate.
+        """
+
+        with tempfile.NamedTemporaryFile(suffix=".wav") as tf:
+            super().build(*args, output_filepath=tf.name, **kwargs)
+
+            return soundfile.read(tf)

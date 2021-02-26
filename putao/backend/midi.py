@@ -1,35 +1,121 @@
 # coding: utf8
 
 import io
+from dataclasses import dataclass
+from typing import List
 
 import mido
 
 
-def loads(data):
-    buf = io.BytesIO(data)
-    mid = mido.MidiFile(file=buf)
+@dataclass
+class Note:
+    # absolute start/end
+    start: int
+    end: int
+    pitch: int
+    tpb: int
+    tempo: int
 
-    lead = mid.tracks[1]
+    def dump(self):
+        return {
+            "type": "note",
+            "pitch": self.pitch,
+            "duration": mido.tick2second(self.end - self.start, self.tpb, self.tempo),
+        }
 
-    clock = 0.0
-    for count, msg in enumerate(lead):
-        if msg.type != "note_on":
-            continue
 
-        # rests are the msg's time.
-        yield {"type": "rest", "duration": msg.time}
+def _collides(note1: Note, note2: Note) -> bool:
+    return (note2.start <= note1.start < note2.end) or (
+        note2.start < note1.end <= note2.end
+    )
 
-        duration = None
+
+def _tempo(meta):
+    clock = 0
+    changes = []
+    for msg in meta:
         clock += msg.time
+        if msg.type == "set_tempo":
+            changes.append((clock, msg.tempo))
 
-        for next_msg in lead[count + 1 :]:
-            next_clock = clock
+    return changes
 
-            if not (next_msg.type == "note_off" and next_msg.note == msg.note):
+
+class Song:
+    def __init__(self, data: bytes):
+        buf = io.BytesIO(data)
+        mid = mido.MidiFile(file=buf)
+
+        self.notes: List[Note] = []
+
+        meta = mid.tracks[0]
+        if any(msg.type == "note_on" for msg in meta):
+            # lead is also meta
+            lead = meta
+        else:
+            lead = mid.tracks[5]
+
+        tempos = _tempo(meta)
+
+        clock = 0
+        next_clock = 0
+        current_tempo = tempos[0][1]
+        tempo_counter = 0
+
+        for count, msg in enumerate(lead):
+            clock += msg.time
+
+            if msg.type != "note_on":
                 continue
 
-            next_clock += next_msg.time
-            duration = next_clock - clock
-            break
+            next_clock = clock
+            for next_count, next_msg in enumerate(lead[count + 1 :]):
+                next_clock += next_msg.time
+                if next_msg.type == "note_off" and next_msg.note == msg.note:
+                    break
 
-        yield {"type": "note", "pitch": msg.note, "duration": duration}
+            # apply change in tempo (if any)
+            if not (tempo_counter >= len(tempos)):
+                tempo_clock, tempo = tempos[tempo_counter]
+                if clock <= tempo_clock <= next_clock:
+                    current_tempo = tempo
+                    tempo_counter += 1
+
+            self.notes.append(
+                Note(clock, next_clock, msg.note, mid.ticks_per_beat, current_tempo)
+            )
+
+    def dump(self) -> List[List[dict]]:
+        tracks: List[List[dict]] = [[]]
+        track_count = 0
+
+        for count, note in enumerate(self.notes):
+            prev_note = self.notes[count - 1]
+            note_dump = note.dump()
+
+            if not (note.start == 0):
+                if count >= 1:
+                    interval = note.start - prev_note.end
+                else:
+                    # first note, but there is a pause at the start
+                    interval = note.start
+
+                duration = mido.tick2second(interval, note.tpb, note.tempo)
+                if duration < 0:
+                    print(f"OOPS: notes {prev_note} and {note} overlap!!!")
+
+                tracks[track_count].append(
+                    {
+                        "type": "rest",
+                        "duration": duration,
+                    }
+                )
+
+            # FIXME: very bad things will happen if notes overlap!
+            tracks.append(note_dump)
+
+        return tracks
+
+
+def loads(data: bytes):
+    return Song(data).dump()

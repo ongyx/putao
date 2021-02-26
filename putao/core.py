@@ -1,12 +1,13 @@
 # coding: utf8
 
 import abc
+import collections
 import json
 import logging
 import pathlib
 import tempfile
 from collections.abc import Mapping
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import soundfile
@@ -20,6 +21,8 @@ logging.getLogger("sox").setLevel(logging.ERROR)
 VOICEBANK_CONFIG = "voicebank.json"
 SAMPLE_RATE = 44100
 
+OVERLAP_START = float("inf")
+
 
 class Note(abc.ABC):
     """A musical pitch.
@@ -27,18 +30,22 @@ class Note(abc.ABC):
     Args:
         pitch: The relative semitone difference between the original pitch and the pitch to tune to.
         duration: How long the note should be streched to.
+        overlap: How many seconds the note overlaps with the previous one.
+            Defaults to 0.0 (no overlap).
 
     Attributes:
         type (str): The type of note. Should be overwritten in subclasses.
         pitch (int): See args.
         duration (float): See args.
+        overlap (float): See args.
     """
 
     type = "Note"
 
-    def __init__(self, pitch: int, duration: float):
+    def __init__(self, pitch: int, duration: float, overlap: float = 0.0):
         self.pitch = pitch
         self.duration = duration
+        self.overlap = overlap
 
     def dump(self) -> dict:
         """Dump a dict representation of the note.
@@ -53,7 +60,12 @@ class Note(abc.ABC):
         if not self.type:
             raise ValueError("self.type was not set in a subclass")
 
-        return {"type": self.type, "pitch": self.pitch, "duration": self.duration}
+        return {
+            "type": self.type,
+            "pitch": self.pitch,
+            "duration": self.duration,
+            "overlap": self.overlap,
+        }
 
     @abc.abstractmethod
     def render(self) -> Tuple[np.ndarray, float]:
@@ -146,18 +158,28 @@ class Track:
         voicebank: The voicebank object to use.
 
     Attributes:
-        notes (List[Lyric]): The notes in the track.
+        notes (List[Note]): The notes in the track.
     """
 
     def __init__(self, voicebank: Voicebank):
         self._voicebank = voicebank
-        self.notes: List[Note] = []
+
+        # subtracks for overlapping notes
+        # the first subtrack is the 'main' one.
+        self._subtracks: List[List[Note]] = [[]]
+
+        # the total time (so far) per subtrack.
+        self._clock: Dict[int, float] = collections.defaultdict(float)
+
+    @property
+    def notes(self):
+        return self._subtracks[0]
 
     @property
     def syllables(self):
         return set(self._voicebank["syllables"])
 
-    def note(self, syllable: str, pitch: int, duration: float):
+    def note(self, syllable: str, pitch: int, duration: float, overlap: float = 0.0):
         """Add notes to the track.
 
         Args:
@@ -165,10 +187,15 @@ class Track:
                 For a set of available syllables, use the attribute .syllables.
             pitch: The absoulute semitone value of the pitch.
                 i.e C4 (middle C) -> (4 * 12) + 1 = 49.
-            duration: How long to hold the syllable for.
+            duration: How long to hold the syllable for (in seconds).
                 The syllable will be streched/shortened to this duration.
+            overlap: How many seconds to shift this note backward (overlap with the previous note).
+                To start this note at the same time as the previous note, use the constant OVERLAP_START.
+                If 0, no overlap is added.
+                Defaults to 0.0.
 
         Raises:
+            IndexError, if it tried to overlap at the beginning of a track without any other notes added yet.
             LyricError, if the syllable does not exist or its pitch is invalid.
         """
 
@@ -182,13 +209,48 @@ class Track:
         if syllable_pitch is None:
             raise LyricError(f"invalid pitch: {syllable_pitch}")
 
-        self.notes.append(
-            LyricalNote(
-                self._voicebank.path / f"{syllable}.wav",
-                pitch - syllable_pitch,
-                duration,
-            )
+        note = LyricalNote(
+            self._voicebank.path / f"{syllable}.wav",
+            pitch - syllable_pitch,
+            duration,
+            overlap=overlap,
         )
+
+        clock = self._clock[0]
+
+        if overlap == OVERLAP_START:
+            overlap = self._subtracks[0][-1].duration
+
+        if overlap != 0.0:
+
+            if clock == 0:
+                raise IndexError("can't overlap without at least one note")
+
+            counter = 1
+
+            # check if the other subtracks can take the overlap
+            while True:
+                self._subtracks.append([])
+
+                subtrack_clock = self._clock[counter]
+                if not (subtrack_clock > self._clock[0]):
+                    # this subtrack can take the overlap
+                    # pad the front with silence
+                    self._subtracks[counter].append(
+                        Rest(0, clock - overlap - subtrack_clock)
+                    )
+                    break
+
+                # there is a note already, can't overlap in this subtrack
+                counter += 1
+
+            self._subtracks[counter].append(note)
+
+        else:
+            counter = 0
+            self._subtracks[0].append(note)
+
+        self._clock[counter] += duration - overlap
 
     def rest(self, duration: float):
         """Add a break in-between notes (specifically, after the last note that was added).
@@ -200,19 +262,14 @@ class Track:
 
         self.notes.append(Rest(0, duration))
 
-    def render(self, path: Union[str, pathlib.Path]):
-        """Render this track to a wav file.
-
-        Args:
-            path: The path to the wav file.
-        """
+    def _render_subtrack(self, subtrack: int) -> Tuple[np.ndarray, int]:
 
         wavfiles = []
 
         with tempfile.TemporaryDirectory() as _tempdir:
             tempdir = pathlib.Path(_tempdir)
 
-            for count, note in enumerate(self.notes):
+            for count, note in enumerate(self._subtracks[subtrack]):
                 render, sample_rate = note.render()
 
                 wavfile_path = str(tempdir / f"{count}.wav")
@@ -220,8 +277,35 @@ class Track:
 
                 soundfile.write(wavfile_path, render, sample_rate)
 
-            cbn = sox.Combiner()
-            cbn.build(wavfiles, str(path), "concatenate")
+            if len(wavfiles) >= 2:
+                cbn = utils.Combiner()
+                return cbn.build_array(wavfiles, combine_type="concatenate")
+            else:
+                return soundfile.read(wavfiles[0])
+
+    def render(self, path: Union[str, pathlib.Path]):
+        """Render this track to a wav file.
+
+        Args:
+            path: The path to the wav file.
+        """
+
+        track_paths = []
+
+        with tempfile.TemporaryDirectory() as _tempdir:
+            tempdir = pathlib.Path(_tempdir)
+
+            for count in range(len(self._subtracks)):
+                track_path = str(tempdir / f"{count}.wav")
+                track_paths.append(track_path)
+
+                soundfile.write(track_path, *self._render_subtrack(count))
+
+            if len(track_paths) >= 2:
+                cbn = sox.Combiner()
+                cbn.build(track_paths, path, "mix")
+            else:
+                pathlib.Path(track_paths[0]).rename(path)
 
 
 class Project:
@@ -262,11 +346,14 @@ class Project:
 
             for note in track:
 
+                if "overlap" not in note:
+                    note["overlap"] = 0.0
+
                 if note["type"] == "rest":
                     track_obj.rest(note["duration"])
                 else:
                     track_obj.note(
-                        *[note[f] for f in ("syllable", "pitch", "duration")]
+                        *[note[f] for f in ("syllable", "pitch", "duration", "overlap")]
                     )
 
     def create(self, lyrics: List[List[str]], data: bytes, fmt: str):
@@ -284,10 +371,12 @@ class Project:
         count = 0
 
         for track_num, track in enumerate(lyrics):
-            for lyric in track:
-                note = project_data[track_num][count]
+            for lyric_num in range(min(len(track), len(project_data[track_num]))):
+                note = project_data[track_num][lyric_num]
                 if note["type"] != "rest":
-                    project_data[track_num][count]["syllable"] = lyric
+                    project_data[track_num][count]["syllable"] = lyrics[track_num][
+                        lyric_num
+                    ]
                 count += 1
 
         self.load_dict({"tracks": project_data})
