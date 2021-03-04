@@ -7,3 +7,7 @@ class PutaoError(Exception):
 
 class LyricError(PutaoError):
     pass
+
+
+class OverlapError(PutaoError):
+    pass

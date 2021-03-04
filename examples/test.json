@@ -1,0 +1,106 @@
+{
+    "tracks": {
+        "0": [
+            {
+                "type": "note",
+                "pitch": 9,
+                "duration": 0.25,
+                "syllable": "o"
+            },
+            {
+                "type": "note",
+                "pitch": 11,
+                "duration": 0.5,
+                "syllable": "shi"
+            },
+            {
+                "type": "note",
+                "pitch": 9,
+                "duration": 0.5,
+                "syllable": "e"
+            },
+            {
+                "type": "note",
+                "pitch": 8,
+                "duration": 0.25,
+                "syllable": "te"
+            },
+            {
+                "type": "note",
+                "pitch": 6,
+                "duration": 0.5,
+                "syllable": "yo"
+            },
+            {
+                "type": "note",
+                "pitch": 11,
+                "duration": 0.5,
+                "syllable": "shi"
+            },
+            {
+                "type": "note",
+                "pitch": 9,
+                "duration": 0.5,
+                "syllable": "e"
+            },
+            {
+                "type": "note",
+                "pitch": 8,
+                "duration": 0.5,
+                "syllable": "te"
+            },
+            {
+                "type": "note",
+                "pitch": 6,
+                "duration": 0.5,
+                "syllable": "yo"
+            },
+            {
+                "type": "rest",
+                "pitch": 0,
+                "duration": 0.03125
+            },
+            {
+                "type": "note",
+                "pitch": 6,
+                "duration": 0.25,
+                "syllable": "so"
+            },
+            {
+                "type": "note",
+                "pitch": 4,
+                "duration": 0.5,
+                "syllable": "no"
+            },
+            {
+                "type": "rest",
+                "pitch": 0,
+                "duration": 0.25
+            },
+            {
+                "type": "note",
+                "pitch": 2,
+                "duration": 0.25,
+                "syllable": "shi"
+            },
+            {
+                "type": "note",
+                "pitch": 2,
+                "duration": 0.5,
+                "syllable": "ku"
+            },
+            {
+                "type": "note",
+                "pitch": 4,
+                "duration": 0.25,
+                "syllable": "mi"
+            },
+            {
+                "type": "note",
+                "pitch": 1,
+                "duration": 0.5,
+                "syllable": "mo"
+            }
+        ]
+    }
+}

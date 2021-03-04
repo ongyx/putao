@@ -2,20 +2,19 @@
 """Backends provide an abstraction between a source of music notes and putao's song architecture.
 
 Each backend must have a loads() function that accepts a single argument 'data' with type 'bytes'.
-This function must return a list of lists:
+This function must return a dict of lists:
 
-[  # tracks
-    [  # notes
+{  # tracks
+    "track_name": [  # notes
         {
             'type': ...  # either 'note' or 'rest'
             'duration': ...  # how long to hold the note for
             'pitch': ...  # the absolute semitone value of the note, only needed if type is 'note'.
+            'overlap': ...  # how much the note overlaps with the previous one. Optional (default:0.0)
         },
         ...
     ]
-]
-
-where each item in the outer list is a track and each item in the inner list is a note beloging to a track.
+}
 """
 
 import importlib

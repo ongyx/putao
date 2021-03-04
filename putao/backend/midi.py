@@ -85,36 +85,39 @@ class Song:
                 Note(clock, next_clock, msg.note, mid.ticks_per_beat, current_tempo)
             )
 
-    def dump(self) -> List[List[dict]]:
-        tracks: List[List[dict]] = [[]]
-        track_count = 0
+    def dump(self) -> List[dict]:
+        track: List[dict] = []
 
         for count, note in enumerate(self.notes):
             prev_note = self.notes[count - 1]
             note_dump = note.dump()
 
-            if not (note.start == 0):
+            if note.start > 0:
+
+                # there is a rest between this note and the previous one
                 if count >= 1:
                     interval = note.start - prev_note.end
                 else:
                     # first note, but there is a pause at the start
                     interval = note.start
 
-                duration = mido.tick2second(interval, note.tpb, note.tempo)
-                if duration < 0:
-                    print(f"OOPS: notes {prev_note} and {note} overlap!!!")
+                rest = mido.tick2second(interval, note.tpb, note.tempo)
 
-                tracks[track_count].append(
-                    {
-                        "type": "rest",
-                        "duration": duration,
-                    }
-                )
+                if rest < 0:
+                    # overlapping notes
+                    note_dump["overlap"] = abs(rest)
 
-            # FIXME: very bad things will happen if notes overlap!
-            tracks.append(note_dump)
+                else:
+                    track.append(
+                        {
+                            "type": "rest",
+                            "rest": rest,
+                        }
+                    )
 
-        return tracks
+            track.append(note_dump)
+
+        return track
 
 
 def loads(data: bytes):
