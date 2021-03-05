@@ -2,13 +2,14 @@
 
 import collections
 import math
+import pathlib
 import re
 import tempfile
 from typing import Optional, Tuple
 
 import numpy as np
-import soundfile
 import sox
+import soundfile
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
@@ -64,47 +65,43 @@ def semitone_to_hz(semitone: int) -> float:
     return math.pow(math.pow(2, 1 / 12), semitone - 49) * 440
 
 
-def pitch(wav: np.ndarray, sr: int) -> float:
-    """Calculate the pitch of a wavfile using autocorrelation.
-    (This does not work yet.)
+def note_to_hz(note: str) -> float:
+    """Calculate hertz from notes."""
+    semitones = semitone(note)
+    if semitones is not None:
+        return semitone_to_hz(semitones)
+
+    return 0.0
+
+
+def tune_sample(y: np.ndarray, sr: float, note: str = "C4") -> Tuple[np.ndarray, float]:
+    """Tune a sample to the correct pitch.
 
     Args:
-        wav: The wavfile as a numpy array.
-        sr: The sample rate of the wavfile.
+        y: The original sample (as a numpy array).
+        sr: The sample rate of the sample.
+        note: The note to tune the sample to.
+            Defaults to C4 (middle C).
 
     Returns:
-        The pitch in semitones.
+        The tuned sample as a numpy array, and its sample rate.
     """
-    wav = wav.copy()  # don't overwrite original
 
-    signal = np.correlate(wav, wav, mode="full")[len(wav) - 1 :]
+    with tempfile.TemporaryDirectory() as _tempdir:
+        tempdir = pathlib.Path(_tempdir)
+        sample_path = tempdir / "in.wav"
+        sine_path = tempdir / "sine.wav"
+        tuned_path = tempdir / "out.wav"
 
-    low = int(sr / semitone_to_hz(12))
-    high = int(sr / semitone_to_hz(120))
+        soundfile.write(sample_path, y, sr)
 
-    signal[:low] = 0
-    signal[high:] = 0
+        # create sine
+        sine_wave = np.sin(2 * np.pi * note_to_hz(note) * np.arange(sr * 1.0) / sr)
+        soundfile.write(sine_path, sine_wave, sr)
 
-    pitch_hz = float(sr) / signal.argmax()
+        cbn = sox.Combiner()
+        cbn.build(
+            [str(sample_path), str(sine_path)], str(tuned_path), combine_type="multiply"
+        )
 
-    pitch_semitones = (12 * math.log2(pitch_hz / 440)) + 49
-
-    return pitch_semitones
-
-
-class Combiner(sox.Combiner):
-    def build_array(self, *args, **kwargs) -> Tuple[np.ndarray, int]:
-        """Combine wavfiles and build them into a numpy array.
-
-        Args:
-            *args: Passed to self.build().
-            **kwargs: Passed to self.build().
-
-        Returns:
-            The numpy array and its sample rate.
-        """
-
-        with tempfile.NamedTemporaryFile(suffix=".wav") as tf:
-            super().build(*args, output_filepath=tf.name, **kwargs)
-
-            return soundfile.read(tf)
+        return soundfile.read(tuned_path)

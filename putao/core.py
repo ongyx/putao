@@ -78,7 +78,7 @@ class Rest(Note):
 
     def render(self):
         nframes = math.ceil(self.duration * SAMPLE_RATE)
-        return np.zeros((nframes, 2)), SAMPLE_RATE
+        return np.zeros((nframes, CHANNELS)), SAMPLE_RATE
 
 
 class LyricalNote(Note):
@@ -112,12 +112,11 @@ class LyricalNote(Note):
 
         wav, sample_rate = soundfile.read(str(self._wav_file))
 
-        if self.duration is not None:
-            # calculate the ratio of the two durations
-            ratio = self._duration / self.duration
-            if 0.1 < ratio < 100:
-                # wav = rubberband.time_stretch(wav, sample_rate, ratio)
-                tfm.tempo(ratio)
+        # calculate the ratio of the two durations
+        ratio = self._duration / self.duration
+        if 0.1 < ratio < 100:
+            # wav = rubberband.time_stretch(wav, sample_rate, ratio)
+            tfm.tempo(ratio)
 
         return (
             tfm.build_array(
@@ -133,16 +132,24 @@ class Voicebank(Mapping):
 
     Args:
         path: The path to the voicebank.
+        create: Whether or not to tune samples to C4 (middle C) and generate a new config.
+            Defaults to False.
 
     Attributes:
         path: See args.
         config: The voicebank's config.
     """
 
-    def __init__(self, path: Union[str, pathlib.Path]):
+    def __init__(self, path: Union[str, pathlib.Path], create: bool = False):
         self.path = pathlib.Path(path)
+        self._config_path = self.path / VOICEBANK_CONFIG
 
-        with (self.path / VOICEBANK_CONFIG).open() as f:
+        if create:
+            config = self._create()
+            with self._config_path.open("w") as f:
+                json.dump(config, f, indent=4)
+
+        with self._config_path.open() as f:
             self.config = json.load(f)
 
     def __getitem__(self, key):
@@ -153,6 +160,21 @@ class Voicebank(Mapping):
 
     def __len__(self):
         return len(self.config)
+
+    def _create(self):
+        syllables = {}
+        for sample in self.path.glob("*.wav"):
+            _log.debug("tuning wavfile %s", sample)
+
+            syllables[sample.stem] = "C4"
+            tuned_sample, sr = utils.tune_sample(*soundfile.read(sample), "C4")
+
+            # backup old sample
+            sample.rename(sample.with_suffix(".wav.bak"))
+
+            soundfile.write(sample, tuned_sample, sr)
+
+        return {"syllables": syllables}
 
 
 class Track:
