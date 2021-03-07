@@ -4,8 +4,10 @@ import collections
 import math
 import pathlib
 import re
+import struct
 import tempfile
-from typing import Optional, Tuple
+import wave
+from typing import IO, Optional, Tuple, Union
 
 import numpy as np
 import sox
@@ -20,6 +22,7 @@ _note_length = collections.namedtuple(
     "note_length", "whole half quarter eighth sixteenth"
 )
 NOTE_LENGTH = _note_length(1, 2, 4, 8, 16)
+CHUNKSIZE = 2048  # bigger values require more memory
 
 
 def semitone(note: str) -> Optional[int]:
@@ -59,10 +62,16 @@ def duration(length: int, bpm: int) -> float:
     return (60 / bpm) * (NOTE_LENGTH.quarter / length)
 
 
-def semitone_to_hz(semitone: int) -> float:
+def semitone_to_hz(semitone: float) -> float:
     """Calculate hertz from semitones."""
 
     return math.pow(math.pow(2, 1 / 12), semitone - 49) * 440
+
+
+def hz_to_semitone(hz: float) -> float:
+    """Calculate semitones from hertz."""
+
+    return 12 * math.log2(hz / 440) + 49
 
 
 def note_to_hz(note: str) -> float:
@@ -74,34 +83,57 @@ def note_to_hz(note: str) -> float:
     return 0.0
 
 
-def tune_sample(y: np.ndarray, sr: float, note: str = "C4") -> Tuple[np.ndarray, float]:
-    """Tune a sample to the correct pitch.
+def estimate_semitone(wav: Union[str, IO]) -> float:
+    """Estimate the absolute semitone value of a wavfile by averaging frequencies found using a Fast Fourier Transform.
+    (https://stackoverflow.com/a/2649540)
+
+    NOTE: The wav file _must_ be mono (one channel only)!
+    Because the channels are interleaved, numpy will complain about multiplying arrays of different dimentions.
 
     Args:
-        y: The original sample (as a numpy array).
-        sr: The sample rate of the sample.
-        note: The note to tune the sample to.
-            Defaults to C4 (middle C).
+        wav: The wavfile to use.
 
     Returns:
-        The tuned sample as a numpy array, and its sample rate.
+        The semitone value, as a float.
     """
 
-    with tempfile.TemporaryDirectory() as _tempdir:
-        tempdir = pathlib.Path(_tempdir)
-        sample_path = tempdir / "in.wav"
-        sine_path = tempdir / "sine.wav"
-        tuned_path = tempdir / "out.wav"
+    wavfile = wave.open(wav)
+    sample_width = wavfile.getsampwidth()
+    sample_rate = wavfile.getframerate()
 
-        soundfile.write(sample_path, y, sr)
+    window = np.blackman(CHUNKSIZE)
 
-        # create sine
-        sine_wave = np.sin(2 * np.pi * note_to_hz(note) * np.arange(sr * 1.0) / sr)
-        soundfile.write(sine_path, sine_wave, sr)
+    # frequencies shouldn't be highr than this.
+    upperbound = semitone_to_hz(88)
 
-        cbn = sox.Combiner()
-        cbn.build(
-            [str(sample_path), str(sine_path)], str(tuned_path), combine_type="multiply"
-        )
+    frequencies = []
 
-        return soundfile.read(tuned_path)
+    while True:
+        wav_chunk = wavfile.readframes(CHUNKSIZE)
+        wav_len = len(wav_chunk) // sample_width
+
+        if wav_len < CHUNKSIZE:
+            break
+
+        fmt = f"<{wav_len}h"
+        wav_data = struct.unpack(fmt, wav_chunk)
+
+        wav_array = np.array(wav_data) * window
+
+        fft_data = abs(np.fft.rfft(wav_array)) ** 2
+        fft_max = fft_data[1:].argmax() + 1
+
+        if fft_max != len(fft_data) - 1:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                y0, y1, y2 = np.log(fft_data[fft_max - 1 : fft_max + 2])
+                x1 = (y2 - y0) * 0.5 / (2 * y1 - y2 - y0)
+                frequency = (fft_max + x1) * sample_rate / CHUNKSIZE
+
+        else:
+            frequency = fft_max * sample_rate / CHUNKSIZE
+
+        # discard invalid or impossible frequencies
+        if frequency <= upperbound:
+            frequencies.append(frequency)
+
+    return hz_to_semitone(float(np.array(frequencies).mean()))

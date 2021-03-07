@@ -13,7 +13,7 @@ import numpy as np
 import soundfile
 import sox
 
-from putao import backend, utils
+from putao import backend
 from putao.exceptions import LyricError
 
 logging.getLogger("sox").setLevel(logging.ERROR)
@@ -31,7 +31,8 @@ class Note(abc.ABC):
     """A musical pitch.
 
     Args:
-        pitch: The relative semitone difference between the original pitch and the pitch to tune to.
+        og_pitch: The absolute semitone of the original pitch.
+        pitch: The absolute semitone of the pitch to tune to.
         duration: How long the note should be streched to.
 
     Attributes:
@@ -42,7 +43,8 @@ class Note(abc.ABC):
 
     type = "note"
 
-    def __init__(self, pitch: int, duration: float):
+    def __init__(self, og_pitch: float, pitch: float, duration: float):
+        self.og_pitch = og_pitch
         self.pitch = pitch
         self.duration = duration
 
@@ -106,7 +108,7 @@ class LyricalNote(Note):
         tfm = sox.Transformer()
 
         # shift pitch using relative pitch
-        tfm.pitch(self.pitch)
+        tfm.pitch(self.pitch - self.og_pitch)
         # force 44.1khz sample rate & stereo channels
         tfm.convert(samplerate=SAMPLE_RATE, n_channels=CHANNELS)
 
@@ -140,14 +142,9 @@ class Voicebank(Mapping):
         config: The voicebank's config.
     """
 
-    def __init__(self, path: Union[str, pathlib.Path], create: bool = False):
+    def __init__(self, path: Union[str, pathlib.Path]):
         self.path = pathlib.Path(path)
         self._config_path = self.path / VOICEBANK_CONFIG
-
-        if create:
-            config = self._create()
-            with self._config_path.open("w") as f:
-                json.dump(config, f, indent=4)
 
         with self._config_path.open() as f:
             self.config = json.load(f)
@@ -160,21 +157,6 @@ class Voicebank(Mapping):
 
     def __len__(self):
         return len(self.config)
-
-    def _create(self):
-        syllables = {}
-        for sample in self.path.glob("*.wav"):
-            _log.debug("tuning wavfile %s", sample)
-
-            syllables[sample.stem] = "C4"
-            tuned_sample, sr = utils.tune_sample(*soundfile.read(sample), "C4")
-
-            # backup old sample
-            sample.rename(sample.with_suffix(".wav.bak"))
-
-            soundfile.write(sample, tuned_sample, sr)
-
-        return {"syllables": syllables}
 
 
 class Track:
@@ -210,19 +192,15 @@ class Track:
             LyricError, if the syllable does not exist or its pitch is invalid.
         """
 
-        syllable_note = self._voicebank["syllables"].get(syllable)
-
-        if syllable_note is None:
-            raise LyricError(f"syllable {syllable} does not exist in current voicebank")
-
-        syllable_pitch = utils.semitone(syllable_note)
+        syllable_pitch = self._voicebank["syllables"].get(syllable)
 
         if syllable_pitch is None:
-            raise LyricError(f"invalid pitch: {syllable_pitch}")
+            raise LyricError(f"syllable {syllable} does not exist in current voicebank")
 
         note = LyricalNote(
             self._voicebank.path / f"{syllable}.wav",
-            pitch - syllable_pitch,
+            syllable_pitch,
+            pitch,
             duration,
         )
 
@@ -236,7 +214,7 @@ class Track:
             duration: How long to rest for.
         """
 
-        rest = Rest(0, duration)
+        rest = Rest(0, 0, duration)
         self._notes.append(rest)
 
     def render(self, to_filepath: Union[str, pathlib.Path]):
@@ -257,7 +235,7 @@ class Track:
                 render, sample_rate = note.render()
 
                 _log.debug(
-                    "[%s/%s] rendered note %s with dimentions %s",
+                    "[%s/%s] rendered %s with dimentions %s",
                     count,
                     total,
                     note,
@@ -271,7 +249,7 @@ class Track:
 
             if len(wavfiles) >= 2:
                 cbn = sox.Combiner()
-                cbn.build(wavfiles, to_filepath, combine_type="concatenate")
+                cbn.build(wavfiles, str(to_filepath), combine_type="concatenate")
 
             else:
                 pathlib.Path(wavfiles[0]).rename(to_filepath)
@@ -433,7 +411,10 @@ class Project:
         with tempfile.TemporaryDirectory() as _tempdir:
             tempdir = pathlib.Path(_tempdir)
 
-            for count, (_, track) in enumerate(self.tracks.items()):
+            for count, (name, track) in enumerate(self.tracks.items()):
+                _log.info(
+                    "rendering track '%s' (total %s notes)", name, len(track._notes)
+                )
                 track_path = tempdir / f"{count}.wav"
                 track_paths.append(str(track_path))
                 track.render(track_path)

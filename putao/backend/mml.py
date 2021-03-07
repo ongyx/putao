@@ -19,18 +19,18 @@ c4
 @sub
 >c4
 
-'#[L](lyrics)':
+'##(lyrics)':  (comment with double hash)
 
     Map each syllable in lyrics (split by spaces) to the corrosponding note on the next line.
 
-#[L]o shi e te o shi e te o so no shi ku mi wo
+##o shi e te o shi e te o so no shi ku mi wo
 a b2 a2 a-2 f+ r b2 a2 a-2 f+ r f+ e2 r d2 d2 c
 
 TODO:
     Add support for the 'v' (volume) command.
-    Multiple tracks (using @ notation).
 """
 
+import collections
 import re
 from dataclasses import dataclass
 from typing import Any, Generator, List, cast
@@ -139,19 +139,34 @@ class Interpreter:
     """Interpret MML commands into putao project songs."""
 
     def __init__(self, mml: str):
-
-        self.octave = OCTAVE
-        self.length = utils.NOTE_LENGTH.quarter
-        self.bpm = BPM
-
         self.tokens = tokenize(mml)
+        # stores per-track properties
+        self.props = {
+            "global": {
+                "octave": OCTAVE,
+                "length": utils.NOTE_LENGTH.quarter,
+                "bpm": BPM,
+            }
+        }
 
-    def execute(self) -> Generator[dict, None, None]:
+    def prop(self, track: str) -> dict:
+        return self.props.setdefault(track, self.props["global"])
+
+    def execute(self) -> dict:  # noqa:c901
+
+        tracks = collections.defaultdict(list)
+
+        current_track = "global"
 
         lyrics: List[str] = []
         lyrics_counter = 0
 
         for token in self.tokens:
+
+            t_prop = self.prop(current_track)
+            t_length = t_prop["length"]
+            t_bpm = t_prop["bpm"]
+            t_octave = t_prop["octave"]
 
             if token.type == "note":
                 note, length = token.value
@@ -160,43 +175,49 @@ class Interpreter:
                 note = {
                     "type": "note",
                     # In mml, we use a 'global' octave so we have to calculate the semitone here.
-                    "pitch": utils.semitone(f"{note}{self.octave}"),
-                    "duration": utils.duration(length or self.length, self.bpm),
+                    "pitch": utils.semitone(f"{note}{t_octave}"),
+                    "duration": utils.duration(length or t_length, t_bpm),
                 }
 
                 if lyrics:
                     note["syllable"] = lyrics[lyrics_counter]
                     lyrics_counter += 1
 
-                yield note
+                tracks[current_track].append(note)
 
             elif token.type == "rest":
                 length = token.value
 
-                yield {
-                    "type": "rest",
-                    "duration": utils.duration(length or self.length, self.bpm),
-                }
+                tracks[current_track].append(
+                    {
+                        "type": "rest",
+                        "duration": utils.duration(length or t_length, t_bpm),
+                    }
+                )
 
             elif token.type == "prop":
                 prop, value = token.value
                 if prop == "o":
-                    self.octave = value
+                    t_prop["octave"] = value
                 elif prop == "l":
-                    self.length = value
+                    t_prop["length"] = value
                 elif prop == "t":
-                    self.bpm = value
+                    t_prop["bpm"] = value
 
             elif token.type == "octave_step":
-                self.octave += token.value
+                t_prop["octave"] += token.value
 
             elif token.type == "comment":
-                if token.value.startswith("[L]"):
+                if token.value.startswith("#"):
                     # it is a lyric comment
-                    lyrics = token.value[3:].split()
+                    lyrics = token.value[1:].split()
+
+            elif token.type == "track":
+                current_track = token.value
+
+        return dict(tracks)
 
 
 def loads(data):
     itpr = Interpreter(data.decode("utf8"))
-    # only one track for now
-    return {"0": [note for note in itpr.execute()]}
+    return itpr.execute()
