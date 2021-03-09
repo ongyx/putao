@@ -19,7 +19,7 @@ c4
 @sub
 >c4
 
-'##(lyrics)':  (comment with double hash)
+'##(lyrics)':
 
     Map each syllable in lyrics (split by spaces) to the corrosponding note on the next line.
 
@@ -31,9 +31,10 @@ TODO:
 """
 
 import collections
+import copy
 import re
 from dataclasses import dataclass
-from typing import Any, Generator, List, cast
+from typing import Any, Dict, Generator, List, cast
 
 from putao import utils
 
@@ -53,6 +54,16 @@ TOKENS = {
 RE_TOKENS = re.compile(
     "|".join(f"(?P<{name}>{regex})" for name, regex in TOKENS.items())
 )
+PROPS = {"o": "octave", "l": "length", "t": "bpm"}
+GLOBAL_PROPS = {
+    "global": {
+        "octave": OCTAVE,
+        "length": utils.NOTE_LENGTH.quarter,
+        "bpm": BPM,
+        "lyrics": [],
+        "lyrics_counter": 0,
+    }
+}
 
 
 @dataclass
@@ -62,45 +73,6 @@ class Token:
 
     def __repr__(self):
         return f"Token(type={self.type}, value={self.value})"
-
-
-def _parse(token_type, raw_value):
-    if token_type == "note":
-        try:
-            key, length = raw_value
-        except ValueError:
-            key = raw_value[0]
-            length = "0"
-
-        value = (key, int(length))
-
-    elif token_type == "rest":
-        if not raw_value:
-            value = 0
-        else:
-            value = int(raw_value[0])
-
-    elif token_type == "prop":
-        prop, value = raw_value
-        value = (prop, int(value))
-
-    elif token_type == "octave_step":
-        step = raw_value[0]
-        if step == ">":
-            value = 1
-        else:
-            value = -1
-
-    elif token_type in ("comment", "track"):
-        value = raw_value[0]
-
-    elif token_type == "ignore":
-        return
-
-    elif token_type == "invalid":
-        raise ValueError
-
-    return value
 
 
 def tokenize(mml: str) -> Generator[Token, None, None]:
@@ -120,17 +92,12 @@ def tokenize(mml: str) -> Generator[Token, None, None]:
         token_type = cast(str, match.lastgroup)
 
         # we don't want the full string, just the groups
-        raw_value = [v for v in match.groups() if v is not None][1:]
+        value = [v for v in match.groups() if v is not None][1:]
 
-        try:
-            value: Any = _parse(token_type, raw_value)
-        except ValueError:
+        if token_type == "invalid":
             raise ValueError(
                 f"invalid token: {match.string[match.start():match.end()]}"
             )
-
-        if value is None:
-            continue
 
         yield Token(token_type, value)
 
@@ -140,82 +107,91 @@ class Interpreter:
 
     def __init__(self, mml: str):
         self.tokens = tokenize(mml)
+
         # stores per-track properties
-        self.props = {
-            "global": {
-                "octave": OCTAVE,
-                "length": utils.NOTE_LENGTH.quarter,
-                "bpm": BPM,
-            }
+        self.props = copy.deepcopy(GLOBAL_PROPS)
+
+        self.tracks: Dict[str, List[dict]] = collections.defaultdict(list)
+        self.current_track = "global"
+
+    def _prop(self) -> dict:
+        return self.props.setdefault(self.current_track, self.props["global"])
+
+    def note(self, token, track):
+        try:
+            key, length = token.value
+        except ValueError:
+            key = token.value[0]
+            length = "0"
+
+        length = int(length)
+
+        key = key.replace("+", "#").replace("-", "b")
+
+        note = {
+            "type": "note",
+            # In mml, we use a 'global' octave so we have to calculate the semitone here.
+            "pitch": utils.semitone(f"{key}{track['octave']}"),
+            "duration": utils.duration(length or track["length"], track["bpm"]),
         }
 
-    def prop(self, track: str) -> dict:
-        return self.props.setdefault(track, self.props["global"])
+        if track["lyrics"]:
+            counter = track["lyrics_counter"]
 
-    def execute(self) -> dict:  # noqa:c901
+            try:
+                syllable = track["lyrics"][counter]
+            except IndexError:
+                syllable = track["lyrics"][-1]
 
-        tracks = collections.defaultdict(list)
+            note["syllable"] = syllable
+            track["lyrics_counter"] += 1
 
-        current_track = "global"
+        self.tracks[self.current_track].append(note)
 
-        lyrics: List[str] = []
-        lyrics_counter = 0
+    def rest(self, token, track):
+        if not token.value:
+            length = track["length"]
+        else:
+            length = int(token.value[0])
+
+        self.tracks[self.current_track].append(
+            {"type": "rest", "duration": utils.duration(length, track["bpm"])}
+        )
+
+    def prop(self, token, track):
+        prop, value = token.value
+        propname = PROPS[prop]
+        track[propname] = int(value)
+
+    def octave_step(self, token, track):
+        step = token.value[0]
+        if step == ">":
+            octave = 1
+        else:
+            octave = -1
+
+        track["octave"] += octave
+
+    def comment(self, token, track):
+        comment = token.value[0]
+        if comment.startswith("#"):
+            track["lyrics"] = comment[1:].split()
+
+    def track(self, token, track):
+        self.current_track = token.value[0]
+
+    def ignore(self, token, track):
+        pass
+
+    def execute(self) -> dict:
+        self.tracks.clear()
 
         for token in self.tokens:
 
-            t_prop = self.prop(current_track)
-            t_length = t_prop["length"]
-            t_bpm = t_prop["bpm"]
-            t_octave = t_prop["octave"]
+            t_prop = self._prop()
+            getattr(self, token.type)(token, t_prop)
 
-            if token.type == "note":
-                note, length = token.value
-                note = note.replace("+", "#").replace("-", "b")
-
-                note = {
-                    "type": "note",
-                    # In mml, we use a 'global' octave so we have to calculate the semitone here.
-                    "pitch": utils.semitone(f"{note}{t_octave}"),
-                    "duration": utils.duration(length or t_length, t_bpm),
-                }
-
-                if lyrics:
-                    note["syllable"] = lyrics[lyrics_counter]
-                    lyrics_counter += 1
-
-                tracks[current_track].append(note)
-
-            elif token.type == "rest":
-                length = token.value
-
-                tracks[current_track].append(
-                    {
-                        "type": "rest",
-                        "duration": utils.duration(length or t_length, t_bpm),
-                    }
-                )
-
-            elif token.type == "prop":
-                prop, value = token.value
-                if prop == "o":
-                    t_prop["octave"] = value
-                elif prop == "l":
-                    t_prop["length"] = value
-                elif prop == "t":
-                    t_prop["bpm"] = value
-
-            elif token.type == "octave_step":
-                t_prop["octave"] += token.value
-
-            elif token.type == "comment":
-                if token.value.startswith("#"):
-                    # it is a lyric comment
-                    lyrics = token.value[1:].split()
-
-            elif token.type == "track":
-                current_track = token.value
-
-        return dict(tracks)
+        return dict(self.tracks)
 
 
 def loads(data):
