@@ -61,16 +61,14 @@ mml = (note | rest | prop)[1, ...]
 # eXtended syntax
 comment = pp.Literal("#") + pp.restOfLine
 
-left_brace = pp.Suppress("{")
-right_brace = pp.Suppress("}")
 scope = pp.Forward()
-scope << (
-    pp.Group(
-        pp.Combine(pp.Suppress("@") + pp.Word(pp.alphas)) + pp.Word(pp.alphanums)[...]
-    )
-    + pp.Group(left_brace + scope + right_brace)
-    | mml
+scope_header = pp.Group(
+    pp.Combine(pp.Suppress("@") + pp.Word(pp.alphas)) + pp.Word(pp.alphanums)[...]
 )
+
+inner_scope = pp.Group(pp.Suppress("{") + scope + pp.Suppress("}"))
+
+scope << ((scope_header + inner_scope) | mml)[1, ...]
 
 mmlx = (mml | comment | scope)[1, ...]
 mmlx.ignore(comment)
@@ -81,8 +79,12 @@ if __name__ == "__main__":
     # lol
     c2defgab
     @track lol lol {
+        cdefgab
         @loop 1 {
             cdefgab
+            @loop 2 {
+                cdefgab
+            }
         }
     }
     """
