@@ -232,7 +232,11 @@ class Track:
             total = len(self._notes)
 
             for count, note in enumerate(self._notes, start=1):
-                render, sample_rate = note.render()
+                try:
+                    render, sample_rate = note.render()
+                except Exception as e:
+                    _log.critical("SHIT: failed to render %s!!! (reason: %s)", note, e)
+                    raise e
 
                 _log.debug(
                     "[%s/%s] rendered %s with dimentions %s",

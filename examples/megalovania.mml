@@ -3,15 +3,13 @@
 
 o4 t480
 
-@lead
-dd>d2<a2rg+2g2f2dfg
-cc>d2<a2rg+2g2f2dfg
-<bb>>d2<a2rg+2g2f2dfg
-<b-b->>d2<a2rg+2g2f2dfg
-
-@sub
-<
-dd>d2<a2rg+2g2f2dfg
-cc>d2<a2rg+2g2f2dfg
-<bb>>d2<a2rg+2g2f2dfg
-<b-b->>d2<a2rg+2g2f2dfg
+@track background {
+  @loop 5 {
+    @lyrics sine {
+      dd>d2<a2rg+2g2f2dfg
+      cc>d2<a2rg+2g2f2dfg
+      <bb>>d2<a2rg+2g2f2dfg
+      <b-b->>d2<a2rg+2g2f2dfg
+    }
+  }
+}

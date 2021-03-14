@@ -2,16 +2,12 @@
 
 import collections
 import math
-import pathlib
 import re
 import struct
-import tempfile
 import wave
-from typing import IO, Optional, Tuple, Union
+from typing import IO, Optional, Union
 
 import numpy as np
-import sox
-import soundfile
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
@@ -19,9 +15,9 @@ RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 KEYS = {"c": 1, "d": 3, "e": 5, "f": 6, "g": 8, "a": 10, "b": 12}
 
 _note_length = collections.namedtuple(
-    "note_length", "whole half quarter eighth sixteenth"
+    "note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
 )
-NOTE_LENGTH = _note_length(1, 2, 4, 8, 16)
+NOTE_LENGTH = _note_length(1, 2, 4, 8, 16, 32, 64)
 CHUNKSIZE = 2048  # bigger values require more memory
 
 
@@ -58,6 +54,8 @@ def duration(length: int, bpm: int) -> float:
             i.e NOTE_LENGTH.whole (one note), NOTE_LENGTH.half (half note), etc.
         bpm: The tempo of the note in beats per minute.
     """
+    if length not in NOTE_LENGTH:
+        return 0
 
     return (60 / bpm) * (NOTE_LENGTH.quarter / length)
 
