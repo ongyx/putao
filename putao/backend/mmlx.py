@@ -116,6 +116,10 @@ def _prop(loc, tk):
     return Token("prop", (prop, value, shift), loc)
 
 
+def _oct_shift(loc, tk):
+    return Token("oct_shift", 1 if tk[0] == ">" else -1, loc)
+
+
 def _scope_header(loc, tk):
     return Token("scope", list(tk[0]), loc)
 
@@ -135,10 +139,13 @@ def _mml_syntax():
 
     prop_num = pp.Word(pp.nums)
 
-    prop = pp.Group(pp.Char("olt") + prop_num) | pp.Char("<>")
+    prop = pp.Group(pp.Char("olt") + prop_num)
     prop.setParseAction(_prop)
 
-    mml = (note | rest | prop)[1, ...]
+    oct_shift = pp.Char("<>")
+    oct_shift.setParseAction(_oct_shift)
+
+    mml = (note | rest | prop | oct_shift)[1, ...]
 
     # eXtended syntax
     comment = pp.Literal("#") + pp.restOfLine
@@ -182,7 +189,6 @@ class Interpreter:
 
     def note(self, token, track):
         key, length, syllable = token.value
-        print(key, track)
 
         note = {
             "type": "note",
@@ -200,7 +206,10 @@ class Interpreter:
         length = token.value
 
         self.tracks[self.current_track].append(
-            {"type": "rest", "duration": utils.duration(length, track["tempo"])}
+            {
+                "type": "rest",
+                "duration": utils.duration(length or track["length"], track["tempo"]),
+            }
         )
 
     def prop(self, token, track):
@@ -208,6 +217,9 @@ class Interpreter:
         if shift:
             track[PROPMAP[prop]] += value
         track[PROPMAP[prop]] = int(value)
+
+    def oct_shift(self, token, track):
+        track["octave"] += token.value
 
     def scope_track(self, args, tokens, track):
         self.current_track = args[0]
