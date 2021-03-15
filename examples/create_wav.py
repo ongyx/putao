@@ -17,5 +17,5 @@ project = core.Project()
 project.create(open(f"{song}.mml", "rb").read(), "mmlx")
 project.render(f"{song}.wav")
 
-with open(f"{song}.json", "w") as f:
-    project.dump(f)
+# with open(f"{song}.json", "w") as f:
+#    project.dump(f)

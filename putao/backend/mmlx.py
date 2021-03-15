@@ -158,7 +158,7 @@ def _mml_syntax():
 
     inner_scope = pp.Group(pp.Suppress("{") + scope + pp.Suppress("}"))
 
-    scope << ((scope_header + inner_scope) | mml)[1, ...]
+    scope << ((scope_header + inner_scope) | scope_header | mml)[1, ...]
 
     mmlx = (mml | comment | scope)[1, ...]
     mmlx.ignore(comment)
@@ -255,10 +255,17 @@ class Interpreter:
             else:
                 # the next token is actually a list of tokens under this scope
                 # so take the next one
-                scope_tokens = tokens[counter + 1]
+                try:
+                    scope_tokens = tokens[counter + 1]
+                except IndexError:
+                    scope_tokens = []
                 name, *args = token.value
 
-                getattr(self, f"scope_{name}")(args, scope_tokens, track)
+                try:
+                    getattr(self, f"scope_{name}")(args, scope_tokens, track)
+                except AttributeError:
+                    raise RuntimeError(f"{name}: no such extension exists")
+
                 self._execute(scope_tokens)
 
                 # skip the scoped tokens

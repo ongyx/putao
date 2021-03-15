@@ -239,11 +239,10 @@ class Track:
                     raise e
 
                 _log.debug(
-                    "[%s/%s] rendered %s with dimentions %s",
+                    "[%s/%s] rendered %s",
                     count,
                     total,
                     note,
-                    render.shape,
                 )
 
                 wavfile_path = str(tempdir / f"{count}.wav")

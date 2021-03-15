@@ -13,9 +13,3 @@ o4 t240 l8
     }
   }
 }
-
-@track bass {
-  @loop 4 {
-    rrrrrrrrrrrrrrr
-  }
-}
