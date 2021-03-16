@@ -8,6 +8,7 @@ import wave
 from typing import IO, Optional, Union
 
 import numpy as np
+import soundfile
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
@@ -79,59 +80,3 @@ def note_to_hz(note: str) -> float:
         return semitone_to_hz(semitones)
 
     return 0.0
-
-
-def estimate_semitone(wav: Union[str, IO]) -> float:
-    """Estimate the absolute semitone value of a wavfile by averaging frequencies found using a Fast Fourier Transform.
-    (https://stackoverflow.com/a/2649540)
-
-    NOTE: The wav file _must_ be mono (one channel only)!
-    Because the channels are interleaved, numpy will complain about multiplying arrays of different dimentions.
-
-    Args:
-        wav: The wavfile to use.
-
-    Returns:
-        The semitone value, as a float.
-    """
-
-    wavfile = wave.open(wav)
-    sample_width = wavfile.getsampwidth()
-    sample_rate = wavfile.getframerate()
-
-    window = np.blackman(CHUNKSIZE)
-
-    # frequencies shouldn't be highr than this.
-    upperbound = semitone_to_hz(88)
-
-    frequencies = []
-
-    while True:
-        wav_chunk = wavfile.readframes(CHUNKSIZE)
-        wav_len = len(wav_chunk) // sample_width
-
-        if wav_len < CHUNKSIZE:
-            break
-
-        fmt = f"<{wav_len}h"
-        wav_data = struct.unpack(fmt, wav_chunk)
-
-        wav_array = np.array(wav_data) * window
-
-        fft_data = abs(np.fft.rfft(wav_array)) ** 2
-        fft_max = fft_data[1:].argmax() + 1
-
-        if fft_max != len(fft_data) - 1:
-            with np.errstate(divide="ignore", invalid="ignore"):
-                y0, y1, y2 = np.log(fft_data[fft_max - 1 : fft_max + 2])
-                x1 = (y2 - y0) * 0.5 / (2 * y1 - y2 - y0)
-                frequency = (fft_max + x1) * sample_rate / CHUNKSIZE
-
-        else:
-            frequency = fft_max * sample_rate / CHUNKSIZE
-
-        # discard invalid or impossible frequencies
-        if frequency <= upperbound:
-            frequencies.append(frequency)
-
-    return hz_to_semitone(float(np.array(frequencies).mean()))
