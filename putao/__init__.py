@@ -3,5 +3,9 @@
 
 __version__ = "0.0.3a0"
 
+import logging
 
-from putao.core import Project  # noqa: W0611
+# from putao.core import Project  # noqa: W0611
+
+logging.getLogger("sox").setLevel(logging.ERROR)
+logging.basicConfig(level=logging.DEBUG)

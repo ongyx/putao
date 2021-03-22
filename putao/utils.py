@@ -1,14 +1,12 @@
 # coding: utf8
 
 import collections
+import hashlib
 import math
 import re
-import struct
-import wave
-from typing import IO, Optional, Union
+from typing import Optional
 
-import numpy as np
-import soundfile
+from pydub import AudioSegment
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
@@ -19,7 +17,16 @@ _note_length = collections.namedtuple(
     "note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
 )
 NOTE_LENGTH = _note_length(1, 2, 4, 8, 16, 32, 64)
-CHUNKSIZE = 2048  # bigger values require more memory
+
+SAMPLE_RATE = 44100
+# stereo audio
+CHANNELS = 2
+
+
+def filesafe(name: str) -> str:
+    """Hash name with the SHA1 algorithm, returning a slug suitable for a filename."""
+
+    return hashlib.sha1(name.encode("utf8")).hexdigest()
 
 
 def semitone(note: str) -> Optional[int]:
@@ -46,8 +53,8 @@ def semitone(note: str) -> Optional[int]:
     return (int(octave) * 12) + semitone
 
 
-def duration(length: int, bpm: int) -> float:
-    """Calculate the duration of a note (how long it takes to play).
+def duration(length: int, bpm: int) -> int:
+    """Calculate the duration of a note in miliseconds (how long it takes to play).
     One beat is defined as a quarter note.
 
     Args:
@@ -58,7 +65,7 @@ def duration(length: int, bpm: int) -> float:
     if length not in NOTE_LENGTH:
         return 0
 
-    return (60 / bpm) * (NOTE_LENGTH.quarter / length)
+    return int(((60 / bpm) * (NOTE_LENGTH.quarter / length)) * 1000)
 
 
 def semitone_to_hz(semitone: float) -> float:
@@ -80,3 +87,22 @@ def note_to_hz(note: str) -> float:
         return semitone_to_hz(semitones)
 
     return 0.0
+
+
+def pitch_shift(audio: AudioSegment, semitones: int) -> AudioSegment:
+    """Shift the pitch of the audio segment by semitones.
+    (https://github.com/jiaaro/pydub/issues/157#issuecomment-252366466)
+
+    Args:
+        audio: The pydub audio segment to pitch-shift.
+        semitones: How many semitones to shift (negative values will shift down).
+
+    Returns:
+        The pitch-shifted segment.
+    """
+
+    octaves = semitones / 12
+    new_sr = int(audio.frame_rate * (2 ** octaves))
+
+    pitch_shifted = audio._spawn(audio.raw_data, overrides={"frame_rate": new_sr})
+    return pitch_shifted.set_frame_rate(SAMPLE_RATE)

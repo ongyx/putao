@@ -5,9 +5,9 @@ class PutaoError(Exception):
     pass
 
 
-class LyricError(PutaoError):
+class NoteError(PutaoError):
     pass
 
 
-class OverlapError(PutaoError):
+class TrackError(PutaoError):
     pass

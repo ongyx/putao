@@ -4,6 +4,7 @@
 o4 t240 l8
 
 @track background {
+  r
   @loop 5 {
     @lyrics sine {
       dd>d4<a4rg+4g4f4dfg
