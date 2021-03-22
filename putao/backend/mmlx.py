@@ -56,9 +56,9 @@ Extended syntax:
         Repeat scoped notes by number of times.
         times must be an integer.
 
-    @lyrics (syllables) {...}
+    @lyrics (phonemes) {...}
         Add lyrics (split by spaces) to the scoped notes.
-        If there are not enough syllables, the last one will be repeated for the rest of the notes.
+        If there are not enough phonemes, the last one will be repeated for the rest of the notes.
 """
 
 import collections
@@ -68,6 +68,8 @@ from typing import Any, Dict, List
 import pyparsing as pp
 
 from putao import utils
+
+pp_u = pp.pyparsing_unicode
 
 
 PROPMAP = {"o": "octave", "l": "length", "t": "tempo"}
@@ -88,7 +90,7 @@ def _note(loc, tk):
         key = tk[0][0]
         length = 0
 
-    # the none is a placeholder for a syllable.
+    # the none is a placeholder for a phoneme.
     return Token("note", (key, length, None), loc)
 
 
@@ -152,7 +154,8 @@ def _mml_syntax():
 
     scope = pp.Forward()
     scope_header = pp.Group(
-        pp.Combine(pp.Suppress("@") + pp.Word(pp.alphas)) + pp.Word(pp.alphanums)[...]
+        pp.Combine(pp.Suppress("@") + pp.Word(pp.alphas))
+        + (pp.Word(pp.alphanums) | pp.Word(pp_u.Japanese.printables))[...]
     )
     scope_header.setParseAction(_scope_header)
 
@@ -188,17 +191,17 @@ class Interpreter:
         return self._props.setdefault(self.current_track, self._props["global"])
 
     def note(self, token, track):
-        key, length, syllable = token.value
+        key, length, phoneme = token.value
 
         note = {
             "type": "note",
             # In mml, we use a 'global' octave so we have to calculate the semitone here.
-            "pitch": utils.semitone(f"{key}{track['octave']}"),
+            "pitch": utils.Pitch(note=f"{key}{track['octave']}").semitone,
             "duration": utils.duration(length or track["length"], track["tempo"]),
         }
 
-        if syllable is not None:
-            note["syllable"] = syllable
+        if phoneme is not None:
+            note["phoneme"] = phoneme
 
         self.tracks[self.current_track].append(note)
 
@@ -231,7 +234,7 @@ class Interpreter:
 
     def scope_lyrics(self, args, tokens, track):
         lyrics = iter(args)
-        last_syllable = args[-1]
+        last_phoneme = args[-1]
 
         for token in tokens:
             if token.name == "scope":
@@ -239,7 +242,7 @@ class Interpreter:
 
             if token.name == "note":
                 key, length, _ = token.value
-                token.value = (key, length, next(lyrics, last_syllable))
+                token.value = (key, length, next(lyrics, last_phoneme))
 
     def _execute(self, tokens):
         counter = 0
@@ -274,9 +277,8 @@ class Interpreter:
             counter += 1
 
     def execute(self):
-        self.tracks.clear()
         self._execute(self._tokens)
-        return dict(self.tracks)
+        return {"tracks": dict(self.tracks)}
 
 
 def loads(data):

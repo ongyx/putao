@@ -1,16 +1,14 @@
 # MMLovania (Megalovania in MML)
 # Author: Ong Yong Xin
 
-o4 t240 l8
+o4 l8
 
 @track background {
-  r
-  @loop 5 {
-    @lyrics sine {
+  rrrr
+  @lyrics あ {
       dd>d4<a4rg+4g4f4dfg
       cc>d4<a4rg+4g4f4dfg
       <bb>>d4<a4rg+4g4f4dfg
       <b-b->>d4<a4rg+4g4f4dfg
-    }
   }
 }

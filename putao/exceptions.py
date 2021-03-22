@@ -11,3 +11,7 @@ class TrackError(PutaoError):
 
 class ProjectError(PutaoError):
     pass
+
+
+class ConversionError(PutaoError):
+    pass

@@ -9,7 +9,7 @@ import abc
 
 from pydub import AudioSegment
 
-from putao import voicebank
+from putao import utils, voicebank
 
 
 class NoteBase(abc.ABC):
@@ -17,7 +17,7 @@ class NoteBase(abc.ABC):
         self.duration = duration
 
     @abc.abstractmethod
-    def render(self, preutter: int, overlap: int) -> AudioSegment:
+    def render(self, preutter: int, overlap: int, pitch: int) -> AudioSegment:
         return
 
     def dump(self) -> dict:
@@ -25,7 +25,7 @@ class NoteBase(abc.ABC):
 
 
 class Rest(NoteBase):
-    def render(self, preutter, overlap):
+    def render(self, preutter, overlap, pitch):
         return AudioSegment.silent(self.duration - preutter + overlap)
 
 
@@ -35,7 +35,7 @@ class Note(NoteBase):
         self.entry = entry
         self.pitch = pitch
 
-    def render(self, preutter, overlap):
+    def render(self, preutter, overlap, pitch):
         audio = AudioSegment.from_file(self.entry.wav)
 
         c_start = self.entry.offset
@@ -47,16 +47,20 @@ class Note(NoteBase):
         vowel = audio[v_start:v_end]
 
         phoneme_duration = len(consonant) + len(vowel)
+        # preutterances extend this note into the previous one
+        actual_duration = self.duration + self.entry.preutterance
 
-        if self.duration < phoneme_duration:
+        if actual_duration < phoneme_duration:
             # just cut off the end of the phoneme
             render = (consonant + vowel)[: self.duration]
 
         else:
             # calculate how much time will be used to loop the vowel.
-            vowel_loop_dur = self.duration - len(consonant)
+            vowel_loop_dur = actual_duration - len(consonant)
             vowel_loop = AudioSegment.silent(vowel_loop_dur).overlay(vowel, loop=True)
 
             render = consonant + vowel_loop
 
-        return render[: len(render) - preutter + overlap]
+        return utils.pitch_shift(
+            render[: len(render) - preutter + overlap], self.pitch - pitch
+        )

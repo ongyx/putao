@@ -54,7 +54,7 @@ class Track:
         track_render = AudioSegment.empty()
         total = len(self._notes)
 
-        for count, note in enumerate(self._notes):
+        for count, note in enumerate(self._notes, start=1):
 
             timestamp = len(track_render)
             preutter = 0
@@ -76,7 +76,7 @@ class Track:
                 timestamp / 1000,
             )
 
-            render = note.render(preutter, overlap)
+            render = note.render(preutter, overlap, self.voicebank.pitch)
 
             # extend final render (so overlay won't be truncated)
             track_render += AudioSegment.silent(len(render) - overlap)
@@ -106,7 +106,7 @@ class Track:
 
         for dump in note_dumps:
             if dump["type"] == "note":
-                self.note(*[dump[arg] for arg in ("phenome", "pitch", "duration")])
+                self.note(*[dump[arg] for arg in ("phoneme", "pitch", "duration")])
             elif dump["type"] == "rest":
                 self.rest(dump["duration"])
 
