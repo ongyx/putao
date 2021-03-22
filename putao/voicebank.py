@@ -22,7 +22,7 @@ RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 
 @dataclass
 class Entry:
-    """An entry in the oto.ini config of s UTAU voicebank.
+    """An entry in the oto.ini config of an UTAU voicebank.
     (All time values are in miliseconds.)
 
     Args:
@@ -51,6 +51,14 @@ class Entry:
 
     @staticmethod
     def parse(entry: str) -> Entry:
+        """Parse a line in an oto.ini file.
+
+        Args:
+            entry: The line to parse.
+
+        Returns:
+            The entry object.
+        """
         wav, alias, *times = RE_SYLLABLE.findall(entry)[0]
         times = [int(t) for t in times]
 

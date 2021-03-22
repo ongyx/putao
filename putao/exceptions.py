@@ -5,9 +5,9 @@ class PutaoError(Exception):
     pass
 
 
-class NoteError(PutaoError):
+class TrackError(PutaoError):
     pass
 
 
-class TrackError(PutaoError):
+class ProjectError(PutaoError):
     pass

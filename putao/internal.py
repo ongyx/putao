@@ -31,6 +31,7 @@ class Rest(NoteBase):
 
 class Note(NoteBase):
     def __init__(self, entry: voicebank.Entry, pitch: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.entry = entry
         self.pitch = pitch
 
