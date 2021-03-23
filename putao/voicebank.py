@@ -11,13 +11,18 @@ import pathlib
 import re
 import zipfile
 from dataclasses import dataclass
-from typing import Union
+from typing import Tuple, Union
 
 import chardet
+import numpy as np
+import pyworld
+import soundfile
 
 _log = logging.getLogger("putao")
 
 RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
+
+WORLD_FILES = (".dio", ".star", ".platinum")
 
 
 @dataclass
@@ -41,7 +46,7 @@ class Entry:
         See args.
     """
 
-    wav: Union[str, pathlib.Path]
+    wav: pathlib.Path
     alias: str
     offset: int
     consonant: int
@@ -49,8 +54,8 @@ class Entry:
     preutterance: int
     overlap: int
 
-    @staticmethod
-    def parse(entry: str) -> Entry:
+    @classmethod
+    def parse(cls, entry: str) -> Entry:
         """Parse a line in an oto.ini file.
 
         Args:
@@ -62,7 +67,38 @@ class Entry:
         wav, alias, *times = RE_SYLLABLE.findall(entry)[0]
         times = [int(t) for t in times]
 
-        return Entry(wav, alias, *times)
+        return cls(wav, alias, *times)
+
+    def _frq_paths(self) -> Tuple[pathlib.Path, ...]:
+        return tuple(self.wav.with_suffix(ext) for ext in WORLD_FILES)
+
+    def created_frq(self) -> bool:
+        """Check whether the WORLD frequency analysis has already been created."""
+
+        return all(p.is_file() for p in self._frq_paths())
+
+    def create_frq(self):
+        """Create the WORLD frequency analysis and save it to disk.
+        If it was already created, it will be skipped.
+        """
+
+        if not self.created_frq():
+            analysis = pyworld.wav2world(*soundfile.read(self.wav))
+
+            for result, path in zip(analysis, self._frq_paths()):
+
+                with path.open("wb") as f:
+                    np.save(f, result, allow_pickle=False)
+
+    def load_frq(self) -> Tuple[np.ndarray, ...]:
+        """Load the WORLD frequency analysis from disk for a wavfile.
+        .create_frequencies (in the voicebank) must have been called at least once first.
+
+        Returns:
+            A three-tuple of (f0, sp, ap), equivalent to the return value of pyworld.wav2world().
+        """
+
+        return tuple(np.load(p, allow_pickle=False) for p in self._frq_paths())
 
 
 class Voicebank(c_abc.Mapping):
@@ -95,6 +131,14 @@ class Voicebank(c_abc.Mapping):
                 self._wav_map[entry.alias] = entry
 
         _log.debug("parsed oto.ini")
+
+    def generate_frq(self):
+        """Save the WORLD frequency analysis of all wavfiles to disk.
+        This only has to be done once, so rendering notes is faster.
+        """
+
+        for _, entry in self._wav_map.items():
+            entry.create_frq()
 
     def __getitem__(self, key):
         return self._wav_map[key]

@@ -19,5 +19,6 @@ requires = [
     "pydub>=0.25.1",
     "pyparsing>=2.4.7",
     "pyworld>=0.2.12",
+    "SoundFile>=0.10.3",
 ]
 requires-python = ">=3.6"
