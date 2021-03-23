@@ -135,7 +135,7 @@ def is_utf8(zinfo: zipfile.ZipInfo) -> bool:
     return bool(zinfo.flag_bits & 0x800)
 
 
-def extract_voicebank(
+def extract(
     path: Union[str, pathlib.Path],
     to: Union[str, pathlib.Path],
     convert_newlines: bool = True,

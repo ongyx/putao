@@ -198,21 +198,13 @@ class Project(c_abc.MutableMapping):
         project_render.export(path, format="wav")
 
     def load(self, data: dict):
-        """Load a project from a dict.
-
-        Args:
-            data: The project dict to load.
-        """
+        """Load a project from a dict."""
         for name, notes in data["tracks"].items():
             track = self.new_track(name)
             track.load(notes)
 
     def dump(self) -> dict:
-        """Dump a project to a dict.
-
-        Returns:
-            The project data as a dict.
-        """
+        """Dump a project to a dict."""
         data = {}
         for name, track in self.tracks.items():
             data[name] = track.dump()

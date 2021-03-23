@@ -7,6 +7,7 @@ You have been warned.
 
 import abc
 
+import pyworld
 from pydub import AudioSegment
 
 from putao import utils, voicebank
@@ -48,7 +49,7 @@ class Note(NoteBase):
 
         phoneme_duration = len(consonant) + len(vowel)
         # preutterances extend this note into the previous one
-        actual_duration = self.duration + self.entry.preutterance
+        actual_duration = self.duration + self.entry.preutterance + overlap
 
         if actual_duration < phoneme_duration:
             # just cut off the end of the phoneme
@@ -61,6 +62,4 @@ class Note(NoteBase):
 
             render = consonant + vowel_loop
 
-        return utils.pitch_shift(
-            render[: len(render) - preutter + overlap], self.pitch - pitch
-        )
+        return utils.pitch_shift(render[: len(render) - preutter], self.pitch - pitch)
