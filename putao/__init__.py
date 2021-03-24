@@ -1,7 +1,7 @@
 # coding: utf8
 """葡萄 (putao, grape): Poor man's UTAU."""
 
-__version__ = "0.1.0a0"
+__version__ = "0.1.1a0"
 
 import logging
 
