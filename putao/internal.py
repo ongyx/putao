@@ -9,7 +9,7 @@ import abc
 
 from pydub import AudioSegment
 
-from putao import utils, voicebank
+from putao import utils, utau
 
 
 class NoteBase(abc.ABC):
@@ -30,7 +30,7 @@ class Rest(NoteBase):
 
 
 class Note(NoteBase):
-    def __init__(self, entry: voicebank.Entry, pitch: int, *args, **kwargs):
+    def __init__(self, entry: utau.Entry, pitch: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.entry = entry
         self.pitch = pitch

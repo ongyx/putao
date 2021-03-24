@@ -24,6 +24,8 @@ RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 
 WORLD_FILES = (".dio.npy", ".star.npy", ".platinum.npy")
 
+CONFIG_FILE = "oto.ini"
+
 
 def _frq_paths(wavpath: pathlib.Path) -> Tuple[pathlib.Path, ...]:
     return tuple(wavpath.with_suffix(ext) for ext in WORLD_FILES)
@@ -99,25 +101,24 @@ class Voicebank(c_abc.Mapping):
     def __init__(self, path: Union[str, pathlib.Path], pitch: int):
         self.path = pathlib.Path(path)
         self.pitch = pitch
+        self.wavfiles = set()
 
         self._wav_map = {}
 
         _log.debug("parsing oto.ini")
 
         # assuming the voicebank is already utf8...
-        with (self.path / "oto.ini").open() as f:
+        with (self.path / CONFIG_FILE).open() as f:
             for _entry in f.readlines():
                 entry = Entry.parse(_entry)
 
                 # absolute path
                 entry.wav = self.path / entry.wav
+                self.wavfiles.add(entry.wav)
+
                 self._wav_map[entry.alias] = entry
 
         _log.debug("parsed oto.ini")
-
-    @property
-    def wavfiles(self) -> set:
-        return set(entry.wav for _, entry in self._wav_map.items())
 
     def generate_frq(self, force: bool = False):
         """Create and save the WORLD frequency analysis of all wavfiles in oto.ini to disk.
@@ -135,9 +136,12 @@ class Voicebank(c_abc.Mapping):
             if all(frq.is_file() for frq in frq_paths) and not force:
                 continue
 
+            _log.debug("generating frq for %s", wavfile)
+
             analysis = pyworld.wav2world(*soundfile.read(wavfile))
 
             for path, result in zip(frq_paths, analysis):
+                _log.debug("saving to %s", path)
 
                 np.save(path, result, allow_pickle=False)
 
@@ -198,6 +202,7 @@ def extract(
 
     with zipfile.ZipFile(path) as zf:
         for zinfo in zf.infolist():
+
             if not is_utf8(zinfo):
                 # most voicebanks are either romanji (ASCII) or kanji/hirigana (SHIFT-JIS).
                 zinfo.filename = unmojibake(zinfo.filename)
@@ -207,6 +212,7 @@ def extract(
 
             # decode any text files and extract manually
             if full_path.suffix[1:] in ("txt", "ini"):
+                _log.debug("re-encoding %s to UTF8", zinfo.filename)
                 text = unmojibake(zf.read(zinfo))
 
                 if convert_newlines:
@@ -215,4 +221,5 @@ def extract(
                 full_path.write_text(text)
 
             else:
+                _log.debug("extracting %s", zinfo.filename)
                 zf.extract(zinfo, path=to)

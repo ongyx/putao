@@ -7,7 +7,7 @@ from typing import Dict, List, Union
 
 from pydub import AudioSegment
 
-from putao import internal, voicebank
+from putao import internal, utau
 from putao.exceptions import TrackError, ProjectError
 
 _log = logging.getLogger("putao")
@@ -20,7 +20,7 @@ class Track:
         voicebank: The voicebank object to use to render notes.
     """
 
-    def __init__(self, voicebank: voicebank.Voicebank):
+    def __init__(self, voicebank: utau.Voicebank):
         self._notes: List[internal.NoteBase] = []
         self.voicebank = voicebank
 
@@ -136,7 +136,7 @@ class Project(c_abc.MutableMapping):
     """
 
     def __init__(self, vb_path: Union[str, pathlib.Path], pitch: int):
-        self.voicebank = voicebank.Voicebank(vb_path, pitch)
+        self.voicebank = utau.Voicebank(vb_path, pitch)
         self.tracks: Dict[str, Track] = {}
 
     def __getitem__(self, name):

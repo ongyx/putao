@@ -23,3 +23,6 @@ requires = [
     "SoundFile>=0.10.3",
 ]
 requires-python = ">=3.6"
+
+[tool.flit.scripts]
+putao = "putao.cli:cli"

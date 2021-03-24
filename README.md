@@ -1,4 +1,4 @@
-# 葡萄 (putao, grape): Poor man's UTAU
+# putao (葡萄): Poor man's UTAU 🍇
 
 putao is a Python module that allows programmatic creation, editing, and saving of UTAU-style songs.
 
