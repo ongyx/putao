@@ -15,6 +15,7 @@ classifiers = [
 description-file = "README.md"
 requires = [
     "chardet>=4.0.0",
+    "click>=7.1.2",
     "mido>=1.2.9",
     "pydub>=0.25.1",
     "pyparsing>=2.4.7",

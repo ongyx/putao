@@ -44,21 +44,13 @@ Extended syntax:
         Comments can appear anywhere in a line (i.e after commands).
         All text between the '#' until the next newline is ignored.
 
-    @(extension) [args] {...}
-        General syntax for an extension.
-        Extensions can modify/apply changes to the notes within its scope (the '{...}').
+    @(trackname)
+        Add any notes after this to trackname.
+        Any notes without a specified track are implictly added to the 'global' track.
 
-    @track (trackname) {...}
-        Add scoped notes to trackname.
-        Any notes outside of a @track scope are implictly added to the 'global' track.
-
-    @loop (times) {...}
-        Repeat scoped notes by number of times.
-        times must be an integer.
-
-    @lyrics (phonemes) {...}
-        Add lyrics (split by spaces) to the scoped notes.
-        If there are not enough phonemes, the last one will be repeated for the rest of the notes.
+    |(lyrics)
+        Add lyrics to the current track, split by whitespace.
+        Each split is a phoneme.
 """
 
 import collections
@@ -91,7 +83,7 @@ def _note(loc, tk):
         length = 0
 
     # the none is a placeholder for a phoneme.
-    return Token("note", (key, length, None), loc)
+    return Token("note", (key, length), loc)
 
 
 def _rest(loc, tk):
@@ -122,8 +114,12 @@ def _oct_shift(loc, tk):
     return Token("oct_shift", 1 if tk[0] == ">" else -1, loc)
 
 
-def _scope_header(loc, tk):
-    return Token("scope", list(tk[0]), loc)
+def _track(loc, tk):
+    return Token("track", tk[0], loc)
+
+
+def _lyrics(loc, tk):
+    return Token("lyrics", tk[0].split(), loc)
 
 
 # core MML syntax
@@ -152,18 +148,11 @@ def _mml_syntax():
     # eXtended syntax
     comment = pp.Literal("#") + pp.restOfLine
 
-    scope = pp.Forward()
-    scope_header = pp.Group(
-        pp.Combine(pp.Suppress("@") + pp.Word(pp.alphas))
-        + (pp.Word(pp.alphanums) | pp.Word(pp_u.Japanese.printables))[...]
-    )
-    scope_header.setParseAction(_scope_header)
+    track = pp.Suppress("@") + pp.Word(pp.alphanums)
 
-    inner_scope = pp.Group(pp.Suppress("{") + scope + pp.Suppress("}"))
+    lyrics = pp.Suppress("|") + pp.Word(pp.alphanums + pp_u.Japanese.printables)
 
-    scope << ((scope_header + inner_scope) | scope_header | mml)[1, ...]
-
-    mmlx = (mml | comment | scope)[1, ...]
+    mmlx = mml | comment | track | lyrics
     mmlx.ignore(comment)
 
     return mmlx
@@ -181,6 +170,7 @@ class Interpreter:
                 "octave": 4,
                 "length": utils.NOTE_LENGTH.quarter,
                 "tempo": 120,
+                "lyrics": [],
             }
         }
 
@@ -191,7 +181,7 @@ class Interpreter:
         return self._props.setdefault(self.current_track, self._props["global"])
 
     def note(self, token, track):
-        key, length, phoneme = token.value
+        key, length = token.value
 
         note = {
             "type": "note",
@@ -200,8 +190,8 @@ class Interpreter:
             "duration": utils.duration(length or track["length"], track["tempo"]),
         }
 
-        if phoneme is not None:
-            note["phoneme"] = phoneme
+        if track["lyrics"]:
+            note["phoneme"] = next(track["lyrics"])
 
         self.tracks[self.current_track].append(note)
 
@@ -224,60 +214,16 @@ class Interpreter:
     def oct_shift(self, token, track):
         track["octave"] += token.value
 
-    def scope_track(self, args, tokens, track):
-        self.current_track = args[0]
+    def track(self, token, track):
+        self.current_track = token.value
 
-    def scope_loop(self, args, tokens, track):
-        times = int(args[0]) - 1
-        for _ in range(times):
-            tokens.extend(tokens)
-
-    def scope_lyrics(self, args, tokens, track):
-        lyrics = iter(args)
-        last_phoneme = args[-1]
-
-        for token in tokens:
-            if token.name == "scope":
-                raise RuntimeError("scopes are not allowed within lyrics")
-
-            if token.name == "note":
-                key, length, _ = token.value
-                token.value = (key, length, next(lyrics, last_phoneme))
-
-    def _execute(self, tokens):
-        counter = 0
-        limit = len(tokens)
-
-        while counter < limit:
-            token = tokens[counter]
-            track = self._prop()
-
-            if token.name != "scope":
-                getattr(self, token.name)(token, track)
-
-            else:
-                # the next token is actually a list of tokens under this scope
-                # so take the next one
-                try:
-                    scope_tokens = tokens[counter + 1]
-                except IndexError:
-                    scope_tokens = []
-                name, *args = token.value
-
-                try:
-                    getattr(self, f"scope_{name}")(args, scope_tokens, track)
-                except AttributeError:
-                    raise RuntimeError(f"{name}: no such extension exists")
-
-                self._execute(scope_tokens)
-
-                # skip the scoped tokens
-                counter += 1
-
-            counter += 1
+    def lyrics(self, token, track):
+        track["lyrics"] = iter(token.value)
 
     def execute(self):
-        self._execute(self._tokens)
+        for token in self._tokens:
+            getattr(self, token.name)(token, self._prop())
+
         return {"tracks": dict(self.tracks)}
 
 

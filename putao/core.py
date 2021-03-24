@@ -80,6 +80,8 @@ class Track:
 
             # extend final render (so overlay won't be truncated)
             track_render += AudioSegment.silent(len(render) - overlap)
+
+            # overlap this note into previous one
             track_render = track_render.overlay(render, position=timestamp - overlap)
 
         return track_render

@@ -7,7 +7,6 @@ You have been warned.
 
 import abc
 
-import pyworld
 from pydub import AudioSegment
 
 from putao import utils, voicebank
@@ -27,7 +26,7 @@ class NoteBase(abc.ABC):
 
 class Rest(NoteBase):
     def render(self, preutter, overlap, pitch):
-        return AudioSegment.silent(self.duration - preutter + overlap)
+        return AudioSegment.silent(self.duration + overlap - preutter)
 
 
 class Note(NoteBase):
@@ -39,6 +38,7 @@ class Note(NoteBase):
     def render(self, preutter, overlap, pitch):
         audio = AudioSegment.from_file(self.entry.wav)
 
+        # calculate milisecond offsets for the consonant and vowel.
         c_start = self.entry.offset
         c_end = c_start + self.entry.consonant
         consonant = audio[c_start:c_end]
@@ -48,8 +48,8 @@ class Note(NoteBase):
         vowel = audio[v_start:v_end]
 
         phoneme_duration = len(consonant) + len(vowel)
-        # preutterances extend this note into the previous one
-        actual_duration = self.duration + self.entry.preutterance + overlap
+
+        actual_duration = self.entry.preutterance + self.duration + overlap - preutter
 
         if actual_duration < phoneme_duration:
             # just cut off the end of the phoneme
@@ -62,4 +62,4 @@ class Note(NoteBase):
 
             render = consonant + vowel_loop
 
-        return utils.pitch_shift(render[: len(render) - preutter], self.pitch - pitch)
+        return utils.pitch_shift(render, self.pitch - pitch, *self.entry.load_frq())

@@ -22,7 +22,11 @@ _log = logging.getLogger("putao")
 
 RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 
-WORLD_FILES = (".dio", ".star", ".platinum")
+WORLD_FILES = (".dio.npy", ".star.npy", ".platinum.npy")
+
+
+def _frq_paths(wavpath: pathlib.Path) -> Tuple[pathlib.Path, ...]:
+    return tuple(wavpath.with_suffix(ext) for ext in WORLD_FILES)
 
 
 @dataclass
@@ -69,27 +73,6 @@ class Entry:
 
         return cls(wav, alias, *times)
 
-    def _frq_paths(self) -> Tuple[pathlib.Path, ...]:
-        return tuple(self.wav.with_suffix(ext) for ext in WORLD_FILES)
-
-    def created_frq(self) -> bool:
-        """Check whether the WORLD frequency analysis has already been created."""
-
-        return all(p.is_file() for p in self._frq_paths())
-
-    def create_frq(self):
-        """Create the WORLD frequency analysis and save it to disk.
-        If it was already created, it will be skipped.
-        """
-
-        if not self.created_frq():
-            analysis = pyworld.wav2world(*soundfile.read(self.wav))
-
-            for result, path in zip(analysis, self._frq_paths()):
-
-                with path.open("wb") as f:
-                    np.save(f, result, allow_pickle=False)
-
     def load_frq(self) -> Tuple[np.ndarray, ...]:
         """Load the WORLD frequency analysis from disk for a wavfile.
         .create_frequencies (in the voicebank) must have been called at least once first.
@@ -98,7 +81,7 @@ class Entry:
             A three-tuple of (f0, sp, ap), equivalent to the return value of pyworld.wav2world().
         """
 
-        return tuple(np.load(p, allow_pickle=False) for p in self._frq_paths())
+        return tuple(np.load(p, allow_pickle=False) for p in _frq_paths(self.wav))
 
 
 class Voicebank(c_abc.Mapping):
@@ -132,13 +115,31 @@ class Voicebank(c_abc.Mapping):
 
         _log.debug("parsed oto.ini")
 
-    def generate_frq(self):
-        """Save the WORLD frequency analysis of all wavfiles to disk.
+    @property
+    def wavfiles(self) -> set:
+        return set(entry.wav for _, entry in self._wav_map.items())
+
+    def generate_frq(self, force: bool = False):
+        """Create and save the WORLD frequency analysis of all wavfiles in oto.ini to disk.
         This only has to be done once, so rendering notes is faster.
+
+        Args:
+            force: Whether or not to regenerate the analysis if it already had been generated before.
+                Defaults to False.
         """
 
-        for _, entry in self._wav_map.items():
-            entry.create_frq()
+        for wavfile in self.wavfiles:
+
+            frq_paths = _frq_paths(wavfile)
+
+            if all(frq.is_file() for frq in frq_paths) and not force:
+                continue
+
+            analysis = pyworld.wav2world(*soundfile.read(wavfile))
+
+            for path, result in zip(frq_paths, analysis):
+
+                np.save(path, result, allow_pickle=False)
 
     def __getitem__(self, key):
         return self._wav_map[key]

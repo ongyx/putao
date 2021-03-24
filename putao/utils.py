@@ -5,6 +5,8 @@ import hashlib
 import math
 import re
 
+import numpy as np
+import pyworld
 from pydub import AudioSegment
 
 from putao.exceptions import ConversionError
@@ -106,20 +108,36 @@ def duration(length: int, bpm: int) -> int:
     return int(((60 / bpm) * (NOTE_LENGTH.quarter / length)) * 1000)
 
 
-def pitch_shift(audio: AudioSegment, semitones: int) -> AudioSegment:
+def pitch_shift(
+    semitones: int, sample_rate: int, f0: np.ndarray, sp: np.ndarray, ap: np.ndarray
+) -> AudioSegment:
     """Shift the pitch of the audio segment by semitones.
-    (https://github.com/jiaaro/pydub/issues/157#issuecomment-252366466)
 
     Args:
-        audio: The pydub audio segment to pitch-shift.
         semitones: How many semitones to shift (negative values will shift down).
+        sample_rate: The sample rate of your_wav_file.
+        f0, sp, ap: The analysis results of pyworld.wav2world(your_wav_file).
 
     Returns:
         The pitch-shifted segment.
     """
 
-    octaves = semitones / 12
-    new_sr = int(audio.frame_rate * (2 ** octaves))
+    #    (https://github.com/jiaaro/pydub/issues/157#issuecomment-252366466)
+    #    octaves = semitones / 12
+    #    new_sr = int(audio.frame_rate * (2 ** octaves))
+    #
+    #    pitch_shifted = audio._spawn(audio.raw_data, overrides={"frame_rate": new_sr})
+    #    return pitch_shifted.set_frame_rate(SAMPLE_RATEi)
 
-    pitch_shifted = audio._spawn(audio.raw_data, overrides={"frame_rate": new_sr})
-    return pitch_shifted.set_frame_rate(SAMPLE_RATE)
+    # increment f0 to change pitch
+    f0_pitched = f0.copy()
+    f0_pitched += Pitch(semitone=semitones).hz
+
+    pitched = pyworld.synthesize(f0, sp, ap, sample_rate)
+
+    return AudioSegment(
+        pitched.tobytes(),
+        frame_rate=sample_rate,
+        sample_width=pitched.dtype.itemsize,
+        channels=2,
+    )
