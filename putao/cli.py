@@ -9,7 +9,7 @@ import tempfile
 
 import click
 
-from putao import core, backend, utau
+from putao import core, backend, utau, utils
 from putao.__version__ import __version__
 
 click.option = functools.partial(click.option, show_default=True)  # type: ignore
@@ -53,21 +53,14 @@ def v_extract(zfile, target):
 
 
 @voicebank.command("frq")
-@click.argument("path")
+@click.option("-p", "--path", default=".", help="path to the voicebank")
 @click.option("-f", "--force", default=False, is_flag=True, help="ignore existing frqs")
 def v_frq(path, force):
-    """Generate frequency files for a UTAU voicebank at path."""
+    """Generate frequency files for a UTAU voicebank."""
 
     # pitch will not be used anyway.
     voicebank = utau.Voicebank(path, 0)
     voicebank.generate_frq(force=force)
-
-
-# @voicebank.command("init")
-# @click.argument("path")
-# @click.option("-k", "--key", type=int, help="voicebank key (i.e C4, D#4, etc.)")
-# def v_init(path):
-#    """Initalise an existing UTAU voicebank at path for use in putao."""
 
 
 @cli.group()
@@ -80,7 +73,6 @@ def project():
 @click.option(
     "-f",
     "--fmt",
-    default="",
     type=click.Choice(backend.BACKENDS),
     help="external file format",
 )
@@ -104,8 +96,21 @@ def p_import(file, fmt, output):
         json.dump(proj_data, f, indent=4)
 
 
-# @project.command("render")
-# @click.argument("proj_file")
-# @click.option("-o", "--output", default="render.wav", help="file to render to")
-# def p_render(proj_file, output):
-#    """Render a project file."""
+@project.command("render")
+@click.argument("proj_file")
+@click.option("-o", "--output", default="render.wav", help="file to render to")
+@click.option("-v", "--voicebank", default=".", help="path to the voicebank")
+@click.option(
+    "-p",
+    "--pitch",
+    required=True,
+    help="pitch of the voicebank, i.e C#5, Db4, E3, etc.",
+)
+def p_render(proj_file, output, voicebank, pitch):
+    """Render a project file."""
+
+    proj = core.Project(voicebank, utils.Pitch(note=pitch).semitone)
+
+    proj.fload(proj_file)
+
+    proj.render(output)

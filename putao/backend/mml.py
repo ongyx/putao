@@ -1,5 +1,5 @@
 # coding: utf8
-"""mmlx (Music Macro Language eXtended) parser and interpreter.
+"""mml (Music Macro Language) parser and interpreter.
 
 TODO
 - add support for ADSR envelopes through 'v' command.
@@ -143,10 +143,10 @@ def _mml_syntax():
     )
     lyrics.setParseAction(_lyrics)
 
-    mmlx = (lyrics | track | comment | mml)[1, ...]
-    mmlx.ignore(comment)
+    mml = (lyrics | track | comment | mml)[1, ...]
+    mml.ignore(comment)
 
-    return mmlx
+    return mml
 
 
 Parser = _mml_syntax()

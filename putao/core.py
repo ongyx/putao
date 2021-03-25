@@ -77,7 +77,11 @@ class Track:
                 timestamp / 1000,
             )
 
-            render = note.render(preutter, overlap, self.voicebank.pitch)
+            try:
+                render = note.render(preutter, overlap, self.voicebank.pitch)
+            except Exception as e:
+                _log.critical(f"SHIT: failed to render note {count} ({note})!!!")
+                raise e
 
             # extend final render (so overlay won't be truncated)
             track_render += AudioSegment.silent(len(render) - overlap)

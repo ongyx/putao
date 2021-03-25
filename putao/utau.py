@@ -11,7 +11,7 @@ import pathlib
 import re
 import zipfile
 from dataclasses import dataclass
-from typing import Tuple, Union
+from typing import Dict, Tuple, Union
 
 import chardet
 import numpy as np
@@ -25,7 +25,6 @@ RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 WORLD_FILES = (".dio.npy", ".star.npy", ".platinum.npy")
 
 CONFIG_FILE = "oto.ini"
-PUTAO_CONFIG_FILE = "oto.json"
 
 
 def _frq_paths(wavpath: pathlib.Path) -> Tuple[pathlib.Path, ...]:
@@ -76,15 +75,15 @@ class Entry:
 
         return cls(wav, alias, *times)
 
-    def load_frq(self) -> Tuple[np.ndarray, ...]:
+    def load_frq(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int]:
         """Load the WORLD frequency analysis from disk for a wavfile.
         .create_frequencies (in the voicebank) must have been called at least once first.
 
         Returns:
-            A three-tuple of (f0, sp, ap), equivalent to the return value of pyworld.wav2world().
+            A three-tuple of (f0, sp, ap, sr), equivalent to the return value of pyworld.wav2world() and the sample rate of the wavfile.
         """
 
-        return tuple(np.load(p, allow_pickle=False) for p in _frq_paths(self.wav))
+        return tuple(np.load(p, allow_pickle=False) for p in _frq_paths(self.wav))  # type: ignore
 
 
 class Voicebank(c_abc.Mapping):
@@ -103,12 +102,11 @@ class Voicebank(c_abc.Mapping):
 
     def __init__(self, path: Union[str, pathlib.Path], pitch: int):
         self.path = pathlib.Path(path)
-        self.config_path = self.path / PUTAO_CONFIG_FILE
 
         self.pitch = pitch
         self.wavfiles = set()
 
-        self._wav_map = {}
+        self._wav_map: Dict[str, Entry] = {}
 
         _log.debug("parsing oto.ini")
 

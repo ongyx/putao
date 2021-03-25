@@ -23,6 +23,13 @@ class NoteBase(abc.ABC):
     def dump(self) -> dict:
         return {"type": self.__class__.__name__.lower(), "duration": self.duration}
 
+    def __repr__(self):
+        return (
+            f"{self.__class__.__name__}("
+            + ", ".join([f"{k}={v}" for k, v in self.__dict__.items()])
+            + ")"
+        )
+
 
 class Rest(NoteBase):
     def render(self, preutter, overlap, pitch):
@@ -36,6 +43,15 @@ class Note(NoteBase):
         self.pitch = pitch
 
     def render(self, preutter, overlap, pitch):
+
+        # pitch-shift first
+        #        audio = utils.pitch_shift(
+        #            *self.entry.load_frq(),
+        #            self.pitch - pitch,
+        #            utils._samplerate(self.entry.wav),
+        #        )
+        #        audio = audio.set_frame_rate(utils.SAMPLE_RATE)
+
         audio = AudioSegment.from_file(self.entry.wav)
 
         # calculate milisecond offsets for the consonant and vowel.
@@ -62,4 +78,4 @@ class Note(NoteBase):
 
             render = consonant + vowel_loop
 
-        return utils.pitch_shift(render, self.pitch - pitch, *self.entry.load_frq())
+        return render

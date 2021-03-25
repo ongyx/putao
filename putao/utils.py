@@ -4,6 +4,7 @@ import collections
 import hashlib
 import math
 import re
+import wave
 
 import numpy as np
 import pyworld
@@ -25,6 +26,10 @@ NOTE_LENGTH = _note_length(1, 2, 4, 8, 16, 32, 64)
 SAMPLE_RATE = 44100
 # stereo audio
 CHANNELS = 2
+
+
+def _samplerate(wav):
+    return wave.open(open(wav, "rb")).getframerate()
 
 
 class Pitch:
@@ -108,15 +113,36 @@ def duration(length: int, bpm: int) -> int:
     return int(((60 / bpm) * (NOTE_LENGTH.quarter / length)) * 1000)
 
 
+def f0(y: np.ndarray, sr: int) -> np.ndarray:
+    """Calculate f0 (fundamental frequency) from a wavfile.
+
+    Args:
+        y: The wavfile as a numpy array.
+        sr: The sample rate of the wavfile.
+
+    Returns:
+        f0 as a numpy array.
+    """
+
+    _f0, t = pyworld.dio(y, sr)
+    f0 = pyworld.stonemask(y, _f0, t, sr)
+
+    return f0
+
+
 def pitch_shift(
-    semitones: int, sample_rate: int, f0: np.ndarray, sp: np.ndarray, ap: np.ndarray
+    f0: np.ndarray,
+    sp: np.ndarray,
+    ap: np.ndarray,
+    semitones: int,
+    sample_rate: int,
 ) -> AudioSegment:
     """Shift the pitch of the audio segment by semitones.
 
     Args:
+        f0, sp, ap: The analysis results of pyworld.wav2world(your_wav_file).
         semitones: How many semitones to shift (negative values will shift down).
         sample_rate: The sample rate of your_wav_file.
-        f0, sp, ap: The analysis results of pyworld.wav2world(your_wav_file).
 
     Returns:
         The pitch-shifted segment.
@@ -138,6 +164,6 @@ def pitch_shift(
     return AudioSegment(
         pitched.tobytes(),
         frame_rate=sample_rate,
-        sample_width=pitched.dtype.itemsize,
-        channels=2,
+        sample_width=4,
+        channels=1,
     )
