@@ -27,7 +27,7 @@ Core syntax:
         octave must be a integer.
 
     > / <
-        Shift octave up or down, respectively.
+        Shift current octave up or down.
 
     l(length)
         Change the length of the notes.
@@ -91,23 +91,10 @@ def _rest(loc, tk):
 
 
 def _prop(loc, tk):
-    try:
-        prop, value = tk[0]
-        value = int(value)
-        shift = False
+    prop, value = tk[0]
+    value = int(value)
 
-    except ValueError:
-        prop = "o"
-        value = tk[0]
-
-        if value == "<":
-            value = -1
-        elif value == ">":
-            value = 1
-
-        shift = True
-
-    return Token("prop", (prop, value, shift), loc)
+    return Token("prop", (prop, value), loc)
 
 
 def _oct_shift(loc, tk):
@@ -149,10 +136,14 @@ def _mml_syntax():
     comment = pp.Literal("#") + pp.restOfLine
 
     track = pp.Suppress("@") + pp.Word(pp.alphanums)
+    track.setParseAction(_track)
 
-    lyrics = pp.Suppress("|") + pp.Word(pp.alphanums + pp_u.Japanese.printables)
+    lyrics = pp.Suppress("|") + pp.delimitedList(
+        pp.Word(pp.alphas + pp_u.Japanese.printables), delim=" ", combine=True
+    )
+    lyrics.setParseAction(_lyrics)
 
-    mmlx = mml | comment | track | lyrics
+    mmlx = (lyrics | track | comment | mml)[1, ...]
     mmlx.ignore(comment)
 
     return mmlx
@@ -191,7 +182,10 @@ class Interpreter:
         }
 
         if track["lyrics"]:
-            note["phoneme"] = next(track["lyrics"])
+            try:
+                note["phoneme"] = next(track["lyrics"])
+            except StopIteration:
+                raise ValueError(f"not enough phonemes in lyrics for note {token.loc}")
 
         self.tracks[self.current_track].append(note)
 
@@ -206,9 +200,7 @@ class Interpreter:
         )
 
     def prop(self, token, track):
-        prop, value, shift = token.value
-        if shift:
-            track[PROPMAP[prop]] += value
+        prop, value = token.value
         track[PROPMAP[prop]] = int(value)
 
     def oct_shift(self, token, track):

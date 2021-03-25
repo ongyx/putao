@@ -1,6 +1,7 @@
 # coding: utf8
 
 import collections.abc as c_abc
+import json
 import logging
 import pathlib
 from typing import Dict, List, Union
@@ -205,6 +206,11 @@ class Project(c_abc.MutableMapping):
             track = self.new_track(name)
             track.load(notes)
 
+    def fload(self, file: Union[str, pathlib.Path]):
+        """Load a project from a file."""
+        with open(file, "r") as f:
+            self.load(json.load(f))
+
     def dump(self) -> dict:
         """Dump a project to a dict."""
         data = {}
@@ -212,3 +218,8 @@ class Project(c_abc.MutableMapping):
             data[name] = track.dump()
 
         return data
+
+    def fdump(self, file: Union[str, pathlib.Path]):
+        """Dump a project to a file."""
+        with open(file, "w") as f:
+            json.dump(self.dump(), f, indent=4)

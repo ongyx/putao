@@ -25,6 +25,7 @@ RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 WORLD_FILES = (".dio.npy", ".star.npy", ".platinum.npy")
 
 CONFIG_FILE = "oto.ini"
+PUTAO_CONFIG_FILE = "oto.json"
 
 
 def _frq_paths(wavpath: pathlib.Path) -> Tuple[pathlib.Path, ...]:
@@ -95,11 +96,15 @@ class Voicebank(c_abc.Mapping):
 
     Attributes:
         path: See args.
+        config_path: The path to the voicebank config file.
+            This file is in putao format (JSON).
         pitch: See args.
     """
 
     def __init__(self, path: Union[str, pathlib.Path], pitch: int):
         self.path = pathlib.Path(path)
+        self.config_path = self.path / PUTAO_CONFIG_FILE
+
         self.pitch = pitch
         self.wavfiles = set()
 
@@ -189,7 +194,7 @@ def extract(
     to: Union[str, pathlib.Path],
     convert_newlines: bool = True,
 ):
-    """Extract an UTAU voicebank zipfile, while decoding file(names) correctly.
+    """Extract an UTAU voicebank zipfile, while decoding file(name)s correctly.
 
     Args:
         path: The path to the zipfile.

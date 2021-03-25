@@ -40,10 +40,14 @@ def loads(data: bytes, fmt: str) -> dict:
     """
 
     module = f"putao.backend.{fmt}"
-    if module in sys.modules:
-        backend = sys.modules[module]
-    else:
-        backend = importlib.import_module(module)
+
+    try:
+        if module in sys.modules:
+            backend = sys.modules[module]
+        else:
+            backend = importlib.import_module(module)
+    except ImportError:
+        raise RuntimeError(f"format not recognised: {fmt}")
 
     return backend.loads(data)  # type: ignore
 
