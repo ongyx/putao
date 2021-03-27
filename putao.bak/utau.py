@@ -12,9 +12,12 @@ import pathlib
 import re
 import zipfile
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
 import chardet
+import numpy as np
+import pyworld
+import soundfile
 
 _log = logging.getLogger("putao")
 
@@ -69,8 +72,7 @@ class Entry:
         return cls(wav, alias, *times)
 
     @classmethod
-    def load(cls, entry: dict) -> Entry:
-        """Load an entry from its dict representation."""
+    def _from_dict(cls, entry: dict) -> Entry:
         new_entry = {
             field: value if field in ("wav", "alias") else int(value)
             for field, value in entry.items()
@@ -78,13 +80,12 @@ class Entry:
 
         return cls(**new_entry)
 
-    def dump(self) -> dict:
-        """Dump this entry to a dict representation."""
+    def _to_dict(self) -> dict:
         return self.__dict__.copy()
 
 
 def parse_oto(oto: Union[str, pathlib.Path]) -> Dict[str, Entry]:
-    """Parse an oto.ini file.
+    """Parse a oto.ini file.
 
     Args:
         path: The path to the oto.ini file.
@@ -100,6 +101,10 @@ def parse_oto(oto: Union[str, pathlib.Path]) -> Dict[str, Entry]:
     with open(oto) as f:
         for _entry in f.readlines():
             entry = Entry.parse(_entry)
+
+            # parent path should be where the voicebank is
+            entry.wav = oto.parent / entry.wav
+
             oto_map[entry.alias] = entry
 
     return oto_map
@@ -122,55 +127,44 @@ class Voicebank(c_abc.Mapping):
 
     def __init__(self, path: Union[str, pathlib.Path], config: Optional[dict] = None):
         self.path = pathlib.Path(path)
-        self.config_path = self.path / JSON_CFG_FILE
+        self.cfg_path = self.path / JSON_CFG_FILE
 
         if config is None:
-            self._load_cfg()
+            with self.cfg_path.open() as f:
+                config = json.load(f)
 
-        else:
-            self.config = config
+        self.config = config
 
-        if "entries" not in self.config:
+        entries = self.config.get("entries")
 
+        if entries is None:
             _log.debug("parsing oto.ini")
 
-            self.entries = parse_oto(self.path / CFG_FILE)
+            entries = parse_oto(self.path / CFG_FILE)
+            entries_dict = {alias: entry._to_dict() for alias, entry in entries.items()}
 
             _log.debug("parsed oto.ini")
 
             # write back to config file
-            self._dump_cfg()
+            with self.cfg_path.open("w") as f:
+                json.dump({**self.config, "entries": entries_dict}, f, indent=4)
 
-        # wavfiles should be in the same directory as the oto.{ini,json} file.
-        # make the paths absolute
-        for _, entry in self.entries.items():
-            entry.wav = self.path / entry.wav
+            self.config["entries"] = entries
+
+        else:
+            # load entries from config
+            self.config["entries"] = {
+                alias: Entry._from_dict(entry) for alias, entry in entries.items()
+            }
 
     def __getitem__(self, key):
-        return self.entries[key]
+        return self.config["entries"][key]
 
     def __iter__(self):
-        return iter(self.entries)
+        return iter(self.config["entries"])
 
     def __len__(self):
-        return len(self.entries)
-
-    def _load_cfg(self):
-        with self.config_path.open() as f:
-            self.config = json.load(f)
-
-        entries = self.config.pop("entries")
-
-        self.entries = {alias: Entry.load(entry) for alias, entry in entries.items()}
-
-    def _dump_cfg(self):
-        config = self.config.copy()
-        config["entries"] = {
-            alias: entry.dump() for alias, entry in self.entries.items()
-        }
-
-        with self.config_path.open("w") as f:
-            json.dump(config, f, indent=4)
+        return len(self.config["entries"])
 
 
 def unmojibake(text: Union[str, bytes]) -> str:
