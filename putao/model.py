@@ -3,7 +3,6 @@
 
 import abc
 import functools
-import io
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
@@ -12,7 +11,7 @@ import pyworld
 import soundfile
 from pydub import AudioSegment
 
-from . import utau
+from . import utau, utils
 
 
 # disable numpy pickle load/dump (we don't use object arrays).
@@ -60,11 +59,12 @@ class Resampler(abc.ABC):
         self.voicebank = voicebank
 
     @abc.abstractmethod
-    def gen_frq(self):
+    def gen_frq(self, force: bool = False):
         """Generate .frq files (or the files that this resampler uses) to speed up rendering.
 
         Args:
-            voicebank: The voicebank to generate .frq files for.
+            force: Whether or not to generate the frq if it already has been.
+                Defaults to False.
         """
 
     @abc.abstractmethod
@@ -96,7 +96,7 @@ class Resampler(abc.ABC):
         c_end = c_start + entry.consonant
         consonant = audio[c_start:c_end]
 
-        v_start = c_end
+        v_start = c_end + 1
         v_end = len(audio) - entry.cutoff
         vowel = audio[v_start:v_end]
 
@@ -127,8 +127,8 @@ class WorldResampler(Resampler):
     # **NOT** compatible with other resamplers!
     FRQS = (".dio.npy", ".star.npy", ".platinum.npy")
 
-    def gen_frq(self, voicebank):
-        for wavfile in voicebank.wavfiles:
+    def gen_frq(self, force=False):
+        for wavfile in self.voicebank.wavfiles:
 
             wav, srate = soundfile.read(wavfile)
             f0, sp, ap = pyworld.wav2world(wav, srate)
@@ -147,12 +147,23 @@ class WorldResampler(Resampler):
 
     def _pitch(self, note):
         f0, sp, ap = self.load_frq(note.entry)
+        sr = utils.srate(note.entry.wav)
+
+        # estimate pitch
+        # get rid of zero values, average will be much less accurate.
+        hz = np.average(f0[f0.nonzero()])
+
+        note_hz = utils.Pitch(semitone=note.pitch).hz
+
+        f0 += hz - note_hz
+
+        return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
 
     def render(self, note, next_note=None):
         if isinstance(note, Rest):
             return AudioSegment.silent(note.duration)
 
-        audio = AudioSegment.from_file(note.entry.wav)
+        audio = self._pitch(note)
 
         consonant, vowel, phoneme_duration = self.slice(audio, note.entry)
 
@@ -173,3 +184,7 @@ class WorldResampler(Resampler):
             render = consonant + vowel_loop
 
         return render
+
+
+# nicer way of retreving resamplers.
+RESAMPLERS = {cls.__name__: cls for cls in Resampler.__subclasses__()}

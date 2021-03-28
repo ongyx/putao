@@ -12,7 +12,7 @@ import pathlib
 import re
 import zipfile
 from dataclasses import dataclass
-from typing import Dict, Optional, Set, Union
+from typing import Dict, Set, Union
 
 import chardet
 
@@ -110,42 +110,26 @@ class Voicebank(c_abc.Mapping):
 
     Args:
         path: The path to the voicebank.
-        config: The inital configuration of the voicebank.
-            If not specified, config will be loaded from the file instead.
 
     Attributes:
+        entries: The entries loaded from the oto.ini file.
         path: See args.
-        config: The voicebank config.
-        cfg_path: The path to the voicebank config file.
-            This file is in putao format (JSON).
         wavfiles: A set of all the wav file paths in oto.ini.
     """
 
-    def __init__(self, path: Union[str, pathlib.Path], config: Optional[dict] = None):
+    def __init__(self, path: Union[str, pathlib.Path]):
         self.path = pathlib.Path(path)
-        self.config_path = self.path / JSON_CFG_FILE
 
         self.entries: Dict[str, Entry]
         self.wavfiles: Set[pathlib.Path] = set()
 
-        if config is None:
-            self._load_cfg()
+        _log.debug("parsing oto.ini")
 
-        else:
-            self.config = config
+        self.entries = parse_oto(self.path / CFG_FILE)
 
-        if "entries" not in self.config:
+        _log.debug("parsed oto.ini")
 
-            _log.debug("parsing oto.ini")
-
-            self.entries = parse_oto(self.path / CFG_FILE)
-
-            _log.debug("parsed oto.ini")
-
-            # write back to config file
-            self._dump_cfg()
-
-        # wavfiles should be in the same directory as the oto.{ini,json} file.
+        # wavfiles should be in the same directory as the oto.ini file.
         # make the paths absolute
         for _, entry in self.entries.items():
             entry.wav = self.path / entry.wav

@@ -9,7 +9,7 @@ import tempfile
 
 import click
 
-from . import core, backend, utau, utils
+from . import core, backend, model, utau
 from .__version__ import __version__
 
 click.option = functools.partial(click.option, show_default=True)  # type: ignore
@@ -52,15 +52,21 @@ def v_extract(zfile, target):
     print("done")
 
 
-@voicebank.command("frq")
+@cli.group()
+def resampler():
+    """List/configure resamplers."""
+
+
+@resampler.command("frq")
+@click.argument("name")
 @click.option("-p", "--path", default=".", help="path to the voicebank")
 @click.option("-f", "--force", default=False, is_flag=True, help="ignore existing frqs")
-def v_frq(path, force):
-    """Generate frequency files for a UTAU voicebank."""
+def r_frq(name, path, force):
+    """Generate frequency files for a UTAU voicebank using resampler by name."""
 
-    # pitch will not be used anyway.
-    voicebank = utau.Voicebank(path, 0)
-    voicebank.generate_frq(force=force)
+    voicebank = utau.Voicebank(path)
+    resampler = model.RESAMPLERS[name](voicebank)
+    resampler.gen_frq(force=force)
 
 
 @cli.group()
@@ -100,16 +106,10 @@ def p_import(file, fmt, output):
 @click.argument("proj_file")
 @click.option("-o", "--output", default="render.wav", help="file to render to")
 @click.option("-v", "--voicebank", default=".", help="path to the voicebank")
-@click.option(
-    "-p",
-    "--pitch",
-    required=True,
-    help="pitch of the voicebank, i.e C#5, Db4, E3, etc.",
-)
-def p_render(proj_file, output, voicebank, pitch):
+def p_render(proj_file, output, voicebank):
     """Render a project file."""
 
-    proj = core.Project(voicebank, utils.Pitch(note=pitch).semitone)
+    proj = core.Project(voicebank)
 
     proj.fload(proj_file)
 

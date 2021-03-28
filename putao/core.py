@@ -4,7 +4,7 @@ import collections.abc as c_abc
 import json
 import logging
 import pathlib
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 from pydub import AudioSegment
 
@@ -18,34 +18,27 @@ class Track:
     """A track (sequence of notes).
 
     Args:
-        voicebank: The voicebank to load phenomes from.
         resampler: The resampler to use to render notes.
-            If not given, defaults to the default resampler (model.Resampler).
     """
 
-    def __init__(
-        self, voicebank: utau.Voicebank, resampler: Optional[model.Resampler] = None
-    ):
+    def __init__(self, resampler: model.Resampler):
         self._notes: List[Union[model.Note, model.Rest]] = []
-
-        if resampler is None:
-            resampler = model.Resampler()
-
         self.resampler = resampler
-        self.voicebank = voicebank
 
     def note(self, phoneme: str, pitch: int, duration: int):
         """Add a note.
 
         Args:
             phoneme: The syllable to sing.
-            pitch: The absolute semitone value of the note.
+            pitch: The absolute semitone value of the note from A0, i.e 49 (A4).
             duration: How long to hold the note for (in miliseconds).
         """
-        if phoneme not in self.voicebank:
+        if phoneme not in self.resampler.voicebank:
             raise TrackError(f"'{phoneme}' does not exist in the voicebank")
 
-        self._notes.append(model.Note(duration, pitch, self.voicebank[phoneme]))
+        self._notes.append(
+            model.Note(duration, pitch, self.resampler.voicebank[phoneme])
+        )
 
     def rest(self, duration: int):
         """Add a rest (break in-between notes).
@@ -137,12 +130,24 @@ class Project(c_abc.MutableMapping):
     Args:
         vb_path: The path to the voicebank.
             The voicebank must be in UTAU format, and must have a oto.ini file.
-        pitch: The pitch of the voicebank in semitones (as a int).
+        resampler: The name of the resampler to use.
+            Available resamplers are in the dictionary model.RESAMPLERS.
+            If not given, defaults to 'WorldResampler'.
+
+    Raises:
+        ProjectError, if the resampler given by name does not exist.
     """
 
-    def __init__(self, vb_path: Union[str, pathlib.Path], pitch: int):
-        self.voicebank = utau.Voicebank(vb_path, {"pitch": pitch})
+    def __init__(
+        self, vb_path: Union[str, pathlib.Path], resampler: str = "WorldResampler"
+    ):
+        self.voicebank = utau.Voicebank(vb_path)
         self.tracks: Dict[str, Track] = {}
+
+        try:
+            self.resampler = model.RESAMPLERS[resampler](self.voicebank)  # type:ignore
+        except KeyError:
+            raise ProjectError(f"resampler {resampler} does not exist")
 
     def __getitem__(self, name):
         return self.tracks[name]
@@ -175,7 +180,7 @@ class Project(c_abc.MutableMapping):
         if name in self.tracks:
             raise ProjectError(f"track already exists: '{name}'")
 
-        track = Track(self.voicebank)
+        track = Track(self.resampler)
         self.tracks[name] = track
 
         _log.debug("created new track %s", name)
