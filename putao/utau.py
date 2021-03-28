@@ -12,7 +12,7 @@ import pathlib
 import re
 import zipfile
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Set, Union
 
 import chardet
 
@@ -118,11 +118,15 @@ class Voicebank(c_abc.Mapping):
         config: The voicebank config.
         cfg_path: The path to the voicebank config file.
             This file is in putao format (JSON).
+        wavfiles: A set of all the wav file paths in oto.ini.
     """
 
     def __init__(self, path: Union[str, pathlib.Path], config: Optional[dict] = None):
         self.path = pathlib.Path(path)
         self.config_path = self.path / JSON_CFG_FILE
+
+        self.entries: Dict[str, Entry]
+        self.wavfiles: Set[pathlib.Path] = set()
 
         if config is None:
             self._load_cfg()
@@ -145,6 +149,7 @@ class Voicebank(c_abc.Mapping):
         # make the paths absolute
         for _, entry in self.entries.items():
             entry.wav = self.path / entry.wav
+            self.wavfiles.add(entry.wav)
 
     def __getitem__(self, key):
         return self.entries[key]
