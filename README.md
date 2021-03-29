@@ -15,10 +15,11 @@ Because python + utau = putao. Conincidentally, it means 'grape' in Chinese.
 ## How it works
 
 putao uses UTAU-format voicebanks (with `oto.ini` files).
-Currently, pitch auto-detection is still WIP, so the pitch must still be manually specified.
 
 The key difference is that putao does not shell out to `resampler.exe`, or any other `.exe` compiled resampler.
 putao's resampler is written entierly in Python, thanks to [pyworld].
+
+(Which means it is cross-platform, as long as you have a C compiler (for pyworld).)
 
 The resampler's core logic is in [`model.py`](./putao/model.py), which models UTAU elements as python classes.
 To create a new resampler, inherit from the `Resampler` class and override the abstract methods.
@@ -114,11 +115,15 @@ Extended syntax:
 pip install putao
 ```
 
-On Linux, you may have to install your distro's equivelent of the packages `libsndfile1`.
+On Linux, you may have to install your distro's equivelent of the following packages:
+
+- `libsnffile1`
+- `rubberband-cli`
+
 i.e Debian:
 
 ```
-sudo apt install libsndfile1
+sudo apt install libsndfile1 rubberband-cli
 ```
 
 ## License

@@ -19,6 +19,7 @@ requires = [
     "mido>=1.2.9",
     "pydub>=0.25.1",
     "pyparsing>=2.4.7",
+    "pyrubberband>=0.3.0",
     "pyworld>=0.2.12",
     "SoundFile>=0.10.3",
 ]

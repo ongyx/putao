@@ -6,6 +6,7 @@ import logging
 import pathlib
 import shutil
 import tempfile
+import time
 
 import click
 
@@ -13,6 +14,18 @@ from . import core, backend, model, utau
 from .__version__ import __version__
 
 click.option = functools.partial(click.option, show_default=True)  # type: ignore
+
+
+class Stopwatch:
+    def __init__(self):
+        self.start = 0
+
+    def __enter__(self):
+        self.start = time.time()
+
+    def __exit__(self, *_, **__):
+        end = time.time()
+        click.echo(f"Elapsed time: {round(end - self.start, 2)}s")
 
 
 @click.group()
@@ -130,5 +143,7 @@ def p_render(proj_file, output, frq):
         proj.resampler.gen_frq_all(force=frq)
         proj.config["frq"] = True
 
-    proj.render(output)
+    with Stopwatch():
+        proj.render(output)
+
     proj.dump(proj_file)

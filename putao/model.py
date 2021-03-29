@@ -10,6 +10,7 @@ from typing import Optional, Tuple, Union
 
 import numpy as np
 import pyworld
+import pyrubberband as pyrb
 import soundfile
 from pydub import AudioSegment
 
@@ -20,6 +21,8 @@ np.save = functools.partial(np.save, allow_pickle=False)
 np.load = functools.partial(np.load, allow_pickle=False)
 
 _log = logging.getLogger("putao")
+
+SAMPLE_RATE = 44100
 
 
 # Notes are the combination of a phenome, duration and pitch.
@@ -111,11 +114,11 @@ class Resampler(abc.ABC):
         # calculate milisecond offsets for the consonant and vowel.
         c_start = entry.offset
         c_end = c_start + entry.consonant
-        consonant = audio[c_start:c_end]
+        consonant = audio[c_start:c_end].set_frame_rate(SAMPLE_RATE)
 
-        v_start = c_end + 1
+        v_start = c_end
         v_end = len(audio) - entry.cutoff
-        vowel = audio[v_start:v_end]
+        vowel = audio[v_start:v_end].set_frame_rate(SAMPLE_RATE)
 
         duration = len(consonant) + len(vowel)
 
@@ -180,6 +183,10 @@ class WorldResampler(Resampler):
 
         return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
 
+    def _stretch(vowel, ratio):
+        vowel_arr = pyrb.time_stretch(utils.seg2arr(vowel), SAMPLE_RATE, ratio)
+        return utils.arr2seg(vowel_arr)
+
     def render(self, note, next_note=None):
         if isinstance(note, Rest):
             return AudioSegment.silent(note.duration)
@@ -200,7 +207,11 @@ class WorldResampler(Resampler):
         else:
             # calculate how much time will be used to loop the vowel.
             vowel_loop_dur = actual_duration - len(consonant)
-            vowel_loop = AudioSegment.silent(vowel_loop_dur).overlay(vowel, loop=True)
+
+            # vowel_loop = AudioSegment.silent(vowel_loop_dur).overlay(vowel, loop=True)
+            # stretch instead, looping causes clicking noises
+            ratio = vowel_loop_dur / len(vowel)
+            vowel_loop = self._stretch(vowel, ratio)
 
             render = consonant + vowel_loop
 
