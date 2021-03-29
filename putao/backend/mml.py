@@ -216,7 +216,7 @@ class Interpreter:
         for token in self._tokens:
             getattr(self, token.name)(token, self._prop())
 
-        return {"tracks": dict(self.tracks)}
+        return dict(self.tracks)
 
 
 def loads(data):

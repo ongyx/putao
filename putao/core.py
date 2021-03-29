@@ -1,10 +1,12 @@
 # coding: utf8
 
+from __future__ import annotations
+
 import collections.abc as c_abc
 import json
 import logging
 import pathlib
-from typing import Dict, List, Union
+from typing import Any, Dict, IO, List, Optional, Union
 
 from pydub import AudioSegment
 
@@ -73,7 +75,7 @@ class Track:
                 pass
 
             _log.debug(
-                "rendering note %s of %s (track duration: %ss)",
+                "[track] rendering note %s of %s (track duration: %ss)",
                 count,
                 total,
                 timestamp / 1000,
@@ -82,7 +84,7 @@ class Track:
             try:
                 render = self.resampler.render(note, next_note)
             except Exception as e:
-                _log.critical(f"SHIT: failed to render note {count} ({note})!!!")
+                _log.critical(f"[track] failed to render note {count} ({note})!!!")
                 raise e
 
             # extend final render (so overlay won't be truncated)
@@ -128,26 +130,45 @@ class Project(c_abc.MutableMapping):
     del proj["lead"]
 
     Args:
-        vb_path: The path to the voicebank.
-            The voicebank must be in UTAU format, and must have a oto.ini file.
-        resampler: The name of the resampler to use.
-            Available resamplers are in the dictionary model.RESAMPLERS.
-            If not given, defaults to 'WorldResampler'.
+        config: The project config (as a dict) to load.
+            If not given, a new project will be created using defaults.
+
+            Any config given should at least have these keys:
+
+            'voicebank': The path to the voicebank.
+                The voicebank must be in UTAU format, and must have a oto.ini file.
+            'resampler': The name of the resampler to use.
+                Available resamplers are in the dictionary model.RESAMPLERS.
+                If not given, defaults to 'WorldResampler'.
 
     Raises:
         ProjectError, if the resampler given by name does not exist.
     """
 
-    def __init__(
-        self, vb_path: Union[str, pathlib.Path], resampler: str = "WorldResampler"
-    ):
-        self.voicebank = utau.Voicebank(vb_path)
-        self.tracks: Dict[str, Track] = {}
+    DEFAULTS: Dict[str, Any] = {"voicebank": ".", "resampler": "WorldResampler"}
+
+    def __init__(self, config: Optional[dict] = None):
+
+        if config is None:
+            config = self.DEFAULTS.copy()
+
+        self.config = config
+        self.voicebank = utau.Voicebank(self.config["voicebank"])
 
         try:
-            self.resampler = model.RESAMPLERS[resampler](self.voicebank)  # type:ignore
+            resampler_cls = model.RESAMPLERS[self.config["resampler"]]
         except KeyError:
-            raise ProjectError(f"resampler {resampler} does not exist")
+            raise ProjectError(f"resampler {self.config['resampler']} does not exist")
+        else:
+            self.resampler = resampler_cls(self.voicebank)  # type:ignore
+
+        # load tracks
+        self.tracks: Dict[str, Track] = {}
+
+        if "tracks" in self.config:
+            for name, notes in self.config["tracks"].items():
+                track = self.new_track(name)
+                track.load(notes)
 
     def __getitem__(self, name):
         return self.tracks[name]
@@ -183,7 +204,7 @@ class Project(c_abc.MutableMapping):
         track = Track(self.resampler)
         self.tracks[name] = track
 
-        _log.debug("created new track %s", name)
+        _log.debug("[project] created new track %s", name)
 
         return track
 
@@ -196,7 +217,7 @@ class Project(c_abc.MutableMapping):
 
         project_render = AudioSegment.empty()
         for name, track in self.tracks.items():
-            _log.debug("rendering track %s", name)
+            _log.info("[project] rendering track %s", name)
             render = track.render()
 
             project_len = len(project_render)
@@ -209,26 +230,34 @@ class Project(c_abc.MutableMapping):
 
         project_render.export(path, format="wav")
 
-    def load(self, data: dict):
-        """Load a project from a dict."""
-        for name, notes in data["tracks"].items():
-            track = self.new_track(name)
-            track.load(notes)
+    @classmethod
+    def loads(cls, config: str) -> Project:
+        """Load a project from a JSON string."""
 
-    def fload(self, file: Union[str, pathlib.Path]):
+        return cls(json.loads(config))
+
+    @classmethod
+    def load(cls, fp: Union[str, pathlib.Path, IO]) -> Project:
         """Load a project from a file."""
-        with open(file, "r") as f:
-            self.load(json.load(f))
 
-    def dump(self) -> dict:
-        """Dump a project to a dict."""
-        data = {}
-        for name, track in self.tracks.items():
-            data[name] = track.dump()
+        if isinstance(fp, (str, pathlib.Path)):
+            fp = open(fp, "r")
 
-        return data
+        return cls.loads(fp.read())
 
-    def fdump(self, file: Union[str, pathlib.Path]):
-        """Dump a project to a file."""
-        with open(file, "w") as f:
-            json.dump(self.dump(), f, indent=4)
+    def dumps(self) -> str:
+        """Dump this project to a JSON string."""
+
+        config = {
+            **self.config,
+            "tracks": {name: track.dump() for name, track in self.tracks.items()},
+        }
+        return json.dumps(config, indent=4)
+
+    def dump(self, fp: Union[str, pathlib.Path, IO]):
+        """Dump this project to a file."""
+
+        if isinstance(fp, (str, pathlib.Path)):
+            fp = open(fp, "w")
+
+        fp.write(self.dumps())

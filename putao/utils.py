@@ -1,6 +1,7 @@
 # coding: utf8
 """Utility functions are kept here."""
 
+import collections
 import io
 import math
 import pathlib
@@ -20,6 +21,12 @@ RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 # in semitones
 KEYS = {"c": 1, "d": 3, "e": 5, "f": 6, "g": 8, "a": 10, "b": 12}
 NUM_KEYS = {v: k for k, v in KEYS.items()}
+
+
+_note_length = collections.namedtuple(
+    "note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
+)
+NOTE_LENGTH = _note_length(1, 2, 4, 8, 16, 32, 64)
 
 
 class Pitch:
@@ -104,6 +111,21 @@ def arr2seg(array: np.ndarray, srate: int) -> AudioSegment:
     """
 
     buf = io.BytesIO()
-    soundfile.write(buf, array, srate)
+    soundfile.write(buf, array, srate, format="wav")
 
     return AudioSegment.from_file(buf, format="wav")
+
+
+def duration(length: int, bpm: int) -> int:
+    """Calculate the duration of a note in miliseconds (how long it takes to play).
+    One beat is defined as a quarter note.
+
+    Args:
+        length: A note length value from the NOTE_LENGTH namedtuple,
+            i.e NOTE_LENGTH.whole (one note), NOTE_LENGTH.half (half note), etc.
+        bpm: The tempo of the note in beats per minute.
+    """
+    if length not in NOTE_LENGTH:
+        return 0
+
+    return int(((60 / bpm) * (NOTE_LENGTH.quarter / length)) * 1000)

@@ -3,6 +3,8 @@
 
 import abc
 import functools
+import logging
+import pathlib
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
@@ -13,10 +15,11 @@ from pydub import AudioSegment
 
 from . import utau, utils
 
-
 # disable numpy pickle load/dump (we don't use object arrays).
 np.save = functools.partial(np.save, allow_pickle=False)
 np.load = functools.partial(np.load, allow_pickle=False)
+
+_log = logging.getLogger("putao")
 
 
 # Notes are the combination of a phenome, duration and pitch.
@@ -59,13 +62,27 @@ class Resampler(abc.ABC):
         self.voicebank = voicebank
 
     @abc.abstractmethod
-    def gen_frq(self, force: bool = False):
+    def gen_frq(self, wavfile: pathlib.Path, force: bool = False):
         """Generate .frq files (or the files that this resampler uses) to speed up rendering.
 
         Args:
+            wavfile: The wavfile to generate .frq files for.
+                The parent folder is the voicebank.
             force: Whether or not to generate the frq if it already has been.
                 Defaults to False.
         """
+
+    def gen_frq_all(self, force: bool = False):
+        """Generate .frq files for all wavfiles in a voicebank.
+
+        Args:
+            force: Same meaning as in .gen_frq().
+        """
+
+        total = len(self.voicebank.wavfiles)
+        for count, wavfile in enumerate(self.voicebank.wavfiles, start=1):
+            _log.debug(f"[resampler] generating frq {count} of {total} ({wavfile})")
+            self.gen_frq(wavfile, force=force)
 
     @abc.abstractmethod
     def load_frq(self, entry: utau.Entry) -> Tuple[np.ndarray, ...]:
@@ -127,14 +144,17 @@ class WorldResampler(Resampler):
     # **NOT** compatible with other resamplers!
     FRQS = (".dio.npy", ".star.npy", ".platinum.npy")
 
-    def gen_frq(self, force=False):
-        for wavfile in self.voicebank.wavfiles:
+    def gen_frq(self, wavfile, force=False):
 
-            wav, srate = soundfile.read(wavfile)
-            f0, sp, ap = pyworld.wav2world(wav, srate)
+        frq_paths = [wavfile.with_suffix(ext) for ext in self.FRQS]
+        if all(frq.is_file() for frq in frq_paths) and not force:
+            return
 
-            for ext, array in zip(self.FRQS, (f0, sp, ap)):
-                np.save(wavfile.with_suffix(ext), array)
+        wav, srate = soundfile.read(wavfile)
+        f0, sp, ap = pyworld.wav2world(wav, srate)
+
+        for frq_path, array in zip(frq_paths, (f0, sp, ap)):
+            np.save(frq_path, array)
 
     def load_frq(self, entry):
         frqs = []
@@ -155,7 +175,8 @@ class WorldResampler(Resampler):
 
         note_hz = utils.Pitch(semitone=note.pitch).hz
 
-        f0 += hz - note_hz
+        # add the difference
+        f0 += note_hz - hz
 
         return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
 
