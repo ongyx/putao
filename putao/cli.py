@@ -21,12 +21,7 @@ def cli():
     logging.basicConfig(level=logging.DEBUG)
 
 
-@cli.group()
-def voicebank():
-    """Voicebank-related utils."""
-
-
-@voicebank.command("extract")
+@cli.command("extract")
 @click.argument("zfile")
 @click.option("-t", "--target", default=".", help="where to extract the voicebank to")
 def v_extract(zfile, target):
@@ -50,11 +45,6 @@ def v_extract(zfile, target):
             shutil.move(path, target)
 
     print("done")
-
-
-@cli.group()
-def project():
-    """Project (song) management."""
 
 
 def _p_new(name):
@@ -81,7 +71,7 @@ def _p_new(name):
     }
 
 
-@project.command("new")
+@cli.command("new")
 @click.argument("name")
 @click.option(
     "-o", "--output", help="where to save new project (defaults to curdir/(name).json)"
@@ -95,17 +85,17 @@ def p_new(name, output):
         json.dump(config, f, indent=4)
 
 
-@project.command("import")
+@cli.command("import")
 @click.argument("file")
+@click.argument("proj_file")
 @click.option(
     "-f",
     "--fmt",
     type=click.Choice(backend.BACKENDS),
     help="external file format",
 )
-@click.option("-o", "--output", default="", help="where to save the project")
-def p_import(file, fmt, output):
-    """Import an external file into a new project."""
+def p_import(file, proj_file, fmt):
+    """Import an external file into an existing project in proj_file."""
 
     file = pathlib.Path(file)
 
@@ -113,19 +103,16 @@ def p_import(file, fmt, output):
         # guess format using file extension
         fmt = file.suffix[1:]
 
-    if not output:
-        output = file.with_suffix(".json")
-
-    config = _p_new(file.stem)
+    config = json.load(open(proj_file))
 
     with file.open("rb") as f:
         config["tracks"] = backend.load(f, fmt)
 
-    with output.open("w") as f:
+    with open(proj_file, "w") as f:
         json.dump(config, f, indent=4)
 
 
-@project.command("render")
+@cli.command("render")
 @click.argument("proj_file")
 @click.option("-o", "--output", default="render.wav", help="file to render to")
 @click.option(
@@ -140,7 +127,7 @@ def p_render(proj_file, output, frq):
         click.echo(
             f"generating frq files using {proj.resampler.__class__.__name__}, this might take a while..."
         )
-        proj.resampler.gen_frq_all(force=True)
+        proj.resampler.gen_frq_all(force=frq)
         proj.config["frq"] = True
 
     proj.render(output)

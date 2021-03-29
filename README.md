@@ -48,16 +48,19 @@ putao project render song.json
 putao is CLI-only for now; creating a GUI to make songs is currently high priority,
 and it will be worked on once putao's API is stabilised.
 
-Check out some [examples](./examples).
+Check out some [examples](./examples): to render them, run `render.sh`.
+This script will create a new project if needed and render the mml file.
+
+You need to supply your own UTAU voicebank, though (make sure to extract with `putao extract` for utf8!).
 
 ## MML Syntax
 
 (Anything enclosed in '[]' is optional.)
 
-Core syntax:
-
 lengths below may be one of '1', '2', '4', '8', '16', '32', '64'
 (1 -> whole note, 2 -> half note, 4 -> quarter note, 8 -> eighth note, etc.)
+
+Core syntax:
 
     (key)[accidental][length]
         Play a note.
