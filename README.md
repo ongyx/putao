@@ -1,4 +1,6 @@
-# putao (葡萄): Poor man's UTAU 🍇
+# putao: Poor man's UTAU 🍇
+
+![レロレロ](https://github.com/ongyx/putao/blob/master/logo.png?raw=true)
 
 putao is a Python module that allows programmatic creation, editing, and saving of UTAU-style songs.
 
@@ -6,11 +8,9 @@ No more having to wrestle with encoding issues: all filenames and text files use
 
 Originally, it was a joke inspired by [Composite]'s [Bad Apple] script but is now an experimental attempt at creating a voice synthesizer in Python.
 
-(Just kidding. Since putao now uses [pyworld] to pitch notes, it is now a JoJoke.)
-
 ## Why name it putao?
 
-Because python + utau = putao. Conincidentally, it means 'grape' in Chinese.
+Because python + utau = putao. Conincidentally, it means 'grape' (葡萄) in Chinese.
 
 ## How it works
 
@@ -106,7 +106,7 @@ Extended syntax:
 
 ## Todo
 
-- Add midi support (WIP)
+- Add midi support (WIP, 50%)
 - GUI
 
 ## Install

@@ -116,7 +116,7 @@ def arr2seg(array: np.ndarray, srate: int) -> AudioSegment:
         return AudioSegment.from_file(buf, format="wav")
 
 
-def seg2array(seg: AudioSegment) -> Tuple[np.ndarray, int]:
+def seg2arr(seg: AudioSegment) -> Tuple[np.ndarray, int]:
     """Convert a audio segment into a numpy array.
 
     Args:
@@ -129,7 +129,7 @@ def seg2array(seg: AudioSegment) -> Tuple[np.ndarray, int]:
     with io.BytesIO() as buf:
         seg.export(buf, format="wav")
 
-        return soundfile.read(buf, format="wav")
+        return soundfile.read(buf)
 
 
 def duration(length: int, bpm: int) -> int:

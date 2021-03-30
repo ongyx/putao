@@ -114,11 +114,11 @@ class Resampler(abc.ABC):
         # calculate milisecond offsets for the consonant and vowel.
         c_start = entry.offset
         c_end = c_start + entry.consonant
-        consonant = audio[c_start:c_end].set_frame_rate(SAMPLE_RATE)
+        consonant = audio[c_start:c_end]  # .set_frame_rate(SAMPLE_RATE)
 
         v_start = c_end
         v_end = len(audio) - entry.cutoff
-        vowel = audio[v_start:v_end].set_frame_rate(SAMPLE_RATE)
+        vowel = audio[v_start:v_end]  # .set_frame_rate(SAMPLE_RATE)
 
         duration = len(consonant) + len(vowel)
 
@@ -183,9 +183,10 @@ class WorldResampler(Resampler):
 
         return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
 
-    def _stretch(vowel, ratio):
-        vowel_arr = pyrb.time_stretch(utils.seg2arr(vowel), SAMPLE_RATE, ratio)
-        return utils.arr2seg(vowel_arr)
+    def _stretch(self, vowel, ratio):
+        x, fs = utils.seg2arr(vowel)
+        y = pyrb.time_stretch(x, fs, ratio)
+        return utils.arr2seg(y, fs)
 
     def render(self, note, next_note=None):
         if isinstance(note, Rest):
