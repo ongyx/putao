@@ -114,11 +114,11 @@ class Resampler(abc.ABC):
         # calculate milisecond offsets for the consonant and vowel.
         c_start = entry.offset
         c_end = c_start + entry.consonant
-        consonant = audio[c_start:c_end]  # .set_frame_rate(SAMPLE_RATE)
+        consonant = audio[c_start:c_end].set_frame_rate(SAMPLE_RATE).set_channels(2)
 
         v_start = c_end
         v_end = len(audio) - entry.cutoff
-        vowel = audio[v_start:v_end]  # .set_frame_rate(SAMPLE_RATE)
+        vowel = audio[v_start:v_end].set_frame_rate(SAMPLE_RATE).set_channels(2)
 
         duration = len(consonant) + len(vowel)
 
@@ -181,6 +181,9 @@ class WorldResampler(Resampler):
         # add the difference
         f0 += note_hz - hz
 
+        # FIXME: some singing noises are grazed
+        # i.e _い.wav (in teto voicebank).
+        # https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder/issues/61
         return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
 
     def _stretch(self, vowel, ratio):

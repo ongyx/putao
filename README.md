@@ -16,6 +16,8 @@ Because python + utau = putao. Conincidentally, it means 'grape' (葡萄) in Chi
 
 putao uses UTAU-format voicebanks (with `oto.ini` files).
 
+(VERY IMPORTANT: Voicebank wavfiles must be mono (one channel) and must be in 16-bit integer format.)
+
 The key difference is that putao does not shell out to `resampler.exe`, or any other `.exe` compiled resampler.
 putao's resampler is written entierly in Python, thanks to [pyworld].
 
