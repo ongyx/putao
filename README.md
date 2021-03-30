@@ -1,6 +1,6 @@
 # putao: Poor man's UTAU 🍇
 
-![レロレロ](https://github.com/ongyx/putao/blob/master/logo.png?raw=true)
+![レロレロ](https://github.com/ongyx/putao/blob/main/logo.png?raw=true)
 
 putao is a Python module that allows programmatic creation, editing, and saving of UTAU-style songs.
 
