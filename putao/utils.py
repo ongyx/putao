@@ -10,18 +10,20 @@ import wave
 from typing import Tuple, Union
 
 import numpy as np
+import pyworld
 import soundfile
 from pydub import AudioSegment
 
 from .exceptions import ConversionError
 
 
+SAMPLE_RATE = 44100
+
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
 # in semitones
 KEYS = {"c": 1, "d": 3, "e": 5, "f": 6, "g": 8, "a": 10, "b": 12}
 NUM_KEYS = {v: k for k, v in KEYS.items()}
-
 
 _note_length = collections.namedtuple(
     "note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
@@ -145,3 +147,14 @@ def duration(length: int, bpm: int) -> int:
         return 0
 
     return int(((60 / bpm) * (NOTE_LENGTH.quarter / length)) * 1000)
+
+
+def sine_f0(duration: float, srate: int) -> np.ndarray:
+    """Return the f0 contour of a sine wave of duration seconds long."""
+
+    sine_arr = np.sin(2 * np.pi * np.arange(srate * duration) * 440.0 / srate).astype(
+        np.float64
+    )
+
+    f0 = pyworld.stonemask(sine_arr, *pyworld.dio(sine_arr, srate), srate)
+    return f0

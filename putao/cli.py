@@ -15,6 +15,8 @@ from .__version__ import __version__
 
 click.option = functools.partial(click.option, show_default=True)  # type: ignore
 
+EXT = "project"
+
 
 class Stopwatch:
     def __init__(self):
@@ -93,7 +95,7 @@ def p_new(name, output):
     """Create a new project through an interactive wizard."""
 
     config = _p_new(name)
-    config_path = output or pathlib.Path(".") / f"{name}.json"
+    config_path = output or pathlib.Path(".") / f"{name}.{EXT}"
     with open(config_path, "w") as f:
         json.dump(config, f, indent=4)
 
@@ -107,7 +109,8 @@ def p_new(name, output):
     type=click.Choice(backend.BACKENDS),
     help="external file format",
 )
-def p_import(file, proj_file, fmt):
+@click.option("-l", "--lyric_file", help="override phonemes in the external file")
+def p_import(file, proj_file, fmt, lyric_file):
     """Import an external file into an existing project in proj_file."""
 
     file = pathlib.Path(file)
@@ -121,29 +124,60 @@ def p_import(file, proj_file, fmt):
     with file.open("rb") as f:
         config["tracks"] = backend.load(f, fmt)
 
+    if lyric_file:
+        counter = 0
+        with open(lyric_file) as f:
+            for line in f.splitlines():
+                for phoneme in line.split():
+
+                    note = config["tracks"]["lead"][count]
+
+                    if not phoneme or note.type != "note":
+                        continue
+
+                    config["tracks"]["lead"][count]["phoneme"] = phoneme
+
+                    count += 1
+
     with open(proj_file, "w") as f:
         json.dump(config, f, indent=4)
+
+    click.echo("done")
+
+
+@cli.command("frq")
+@click.argument("proj_file")
+@click.option(
+    "-f",
+    "--force",
+    is_flag=True,
+    help="regenerate frq files even if they already exist",
+)
+def p_frq(proj_file, force):
+    """Generate frq files for a project using its renderer."""
+
+    proj = core.Project.load(proj_file)
+
+    if "frq" not in proj.config or force:
+        click.echo(
+            f"generating frq files using {proj.resampler.name}, this might take a while..."
+        )
+        proj.resampler.gen_frq_all(force=force)
+        proj.config["frq"] = True
+        proj.dump(proj_file)
+
+    click.echo("done")
 
 
 @cli.command("render")
 @click.argument("proj_file")
 @click.option("-o", "--output", default="render.wav", help="file to render to")
-@click.option(
-    "-f", "--frq", is_flag=True, help="regenerate frq files for the voicebank"
-)
-def p_render(proj_file, output, frq):
+def p_render(proj_file, output):
     """Render a project file."""
 
     proj = core.Project.load(proj_file)
 
-    if "frq" not in proj.config or frq:
-        click.echo(
-            f"generating frq files using {proj.resampler.__class__.__name__}, this might take a while..."
-        )
-        proj.resampler.gen_frq_all(force=frq)
-        proj.config["frq"] = True
-
     with Stopwatch():
         proj.render(output)
 
-    proj.dump(proj_file)
+    click.echo("done")

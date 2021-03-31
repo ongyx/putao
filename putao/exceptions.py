@@ -15,3 +15,7 @@ class ProjectError(PutaoError):
 
 class ConversionError(PutaoError):
     pass
+
+
+class FrqNotFoundError(PutaoError):
+    pass

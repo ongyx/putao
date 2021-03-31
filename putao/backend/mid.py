@@ -48,9 +48,9 @@ class Song:
 
         clock = 0
         next_clock = 0
-        tempo = None
 
         meta = self.mid.tracks[0]
+        meta_clock = 0
 
         if any(msg.type == "note_on" for msg in meta):
             # lead is also meta
@@ -58,13 +58,32 @@ class Song:
         else:
             lead = self.mid.tracks[1]
 
+        tempo = []
+        tempo_counter = 0
+        for msg in meta:
+            meta_clock += msg.time
+
+            if msg.type == "set_tempo":
+                tempo.append((msg.tempo, meta_clock))
+
         for count, msg in enumerate(lead):
             clock += msg.time
 
-            if msg.type == "set_tempo":
-                tempo = msg.tempo
+            current_tempo = tempo[tempo_counter]
 
-            elif msg.type == "note_on":
+            try:
+                next_tempo = tempo[tempo_counter + 1]
+
+            except IndexError:
+                pass
+
+            else:
+                if next_tempo[1] <= clock:
+                    # tempo change
+                    current_tempo = next_tempo
+                    tempo_counter += 1
+
+            if msg.type == "note_on":
                 next_clock = clock
 
                 for next_count, next_msg in enumerate(lead[count + 1 :]):
@@ -74,7 +93,13 @@ class Song:
                         break
 
                 self.events.append(
-                    Event(clock, next_clock, msg.note, self.mid.ticks_per_beat, tempo)
+                    Event(
+                        clock,
+                        next_clock,
+                        msg.note,
+                        self.mid.ticks_per_beat,
+                        current_tempo[0],
+                    )
                 )
 
     def dump(self):
@@ -115,3 +140,7 @@ class Song:
             notes.append(event.dump())
 
         return {"lead": notes}
+
+
+def loads(data):
+    return Song(data).dump()

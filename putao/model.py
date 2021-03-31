@@ -15,14 +15,13 @@ import soundfile
 from pydub import AudioSegment
 
 from . import utau, utils
+from .exceptions import FrqNotFoundError
 
 # disable numpy pickle load/dump (we don't use object arrays).
 np.save = functools.partial(np.save, allow_pickle=False)
 np.load = functools.partial(np.load, allow_pickle=False)
 
 _log = logging.getLogger("putao")
-
-SAMPLE_RATE = 44100
 
 
 # Notes are the combination of a phenome, duration and pitch.
@@ -64,6 +63,56 @@ class Resampler(abc.ABC):
     def __init__(self, voicebank: utau.Voicebank):
         self.voicebank = voicebank
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    def slice(
+        self, audio: AudioSegment, entry: utau.Entry
+    ) -> Tuple[AudioSegment, AudioSegment, int]:
+        """Slice the consonant and vowel out of a phenome wavfile.
+
+        The audio segments are converted to stereo at 44.1kHz.
+
+        Args:
+            audio: The phenome wavfile as an audio segment.
+            entry: The voicebank entry for the phenome.
+
+        Returns:
+            A three-tuple of (consonant, vowel, total_duration).
+        """
+
+        audio = audio.set_frame_rate(utils.SAMPLE_RATE).set_channels(2)
+
+        # calculate milisecond offsets for the consonant and vowel.
+        c_start = entry.offset
+        c_end = c_start + entry.consonant
+        consonant = audio[c_start:c_end]
+
+        v_start = c_end
+        v_end = len(audio) - entry.cutoff
+        vowel = audio[v_start:v_end]
+
+        duration = len(consonant) + len(vowel)
+
+        return consonant, vowel, duration
+
+    @abc.abstractmethod
+    def render(
+        self, note: Union[Note, Rest], next_note: Optional[Union[Note, Rest]] = None
+    ) -> AudioSegment:
+        """Render a note to an audio segment.
+
+        Args:
+            note: The note to render.
+            next_note: The next note (after this one).
+                The preutterace and overlap of the next note are required to
+                correctly calculate how long to stretch the wavfile.
+
+        Returns:
+            The pitched and stretched audio segment.
+        """
+
     @abc.abstractmethod
     def gen_frq(self, wavfile: pathlib.Path, force: bool = False):
         """Generate .frq files (or the files that this resampler uses) to speed up rendering.
@@ -96,48 +145,9 @@ class Resampler(abc.ABC):
 
         Returns:
             A variable-length tuple of numpy arrays.
-        """
 
-    def slice(
-        self, audio: AudioSegment, entry: utau.Entry
-    ) -> Tuple[AudioSegment, AudioSegment, int]:
-        """Slice the consonant and vowel out of a phenome wavfile.
-
-        Args:
-            audio: The phenome wavfile as an audio segment.
-            entry: The voicebank entry for the phenome.
-
-        Returns:
-            A three-tuple of (consonant, vowel, total_duration).
-        """
-
-        # calculate milisecond offsets for the consonant and vowel.
-        c_start = entry.offset
-        c_end = c_start + entry.consonant
-        consonant = audio[c_start:c_end].set_frame_rate(SAMPLE_RATE).set_channels(2)
-
-        v_start = c_end
-        v_end = len(audio) - entry.cutoff
-        vowel = audio[v_start:v_end].set_frame_rate(SAMPLE_RATE).set_channels(2)
-
-        duration = len(consonant) + len(vowel)
-
-        return consonant, vowel, duration
-
-    @abc.abstractmethod
-    def render(
-        self, note: Union[Note, Rest], next_note: Optional[Union[Note, Rest]] = None
-    ) -> AudioSegment:
-        """Render a note to an audio segment.
-
-        Args:
-            note: The note to render.
-            next_note: The next note (after this one).
-                The preutterace and overlap of the next note are required to
-                correctly calculate how long to stretch the wavfile.
-
-        Returns:
-            The pitched and stretched audio segment.
+        Raises:
+            FrqNotFoundError, if the frq files have not been generated beforehand.
         """
 
 
@@ -156,6 +166,9 @@ class WorldResampler(Resampler):
         wav, srate = soundfile.read(wavfile)
         f0, sp, ap = pyworld.wav2world(wav, srate)
 
+        if not f0.nonzero()[0].size:
+            raise RuntimeError(f"f0 estimation failed for {wavfile}!!!")
+
         for frq_path, array in zip(frq_paths, (f0, sp, ap)):
             np.save(frq_path, array)
 
@@ -163,7 +176,13 @@ class WorldResampler(Resampler):
         frqs = []
 
         for ext in self.FRQS:
-            array = np.load(entry.wav.with_suffix(ext))
+
+            try:
+                array = np.load(entry.wav.with_suffix(ext))
+
+            except FileNotFoundError:
+                raise FrqNotFoundError(entry.wav)
+
             frqs.append(array)
 
         return tuple(frqs)

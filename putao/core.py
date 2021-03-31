@@ -11,7 +11,7 @@ from typing import Any, Dict, IO, List, Optional, Union
 from pydub import AudioSegment
 
 from . import model, utau
-from .exceptions import TrackError, ProjectError
+from .exceptions import TrackError, ProjectError, FrqNotFoundError
 
 _log = logging.getLogger("putao")
 
@@ -83,6 +83,12 @@ class Track:
 
             try:
                 render = self.resampler.render(note, next_note)
+
+            except FrqNotFoundError as e:
+                _log.critical(
+                    f"[track] resampler could not find frq files for {e}: generate them first!"
+                )
+
             except Exception as e:
                 _log.critical(f"[track] failed to render note {count} ({note})!!!")
                 raise e
