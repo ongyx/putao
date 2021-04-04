@@ -4,18 +4,19 @@
 import abc
 import functools
 import logging
+import math
 import pathlib
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
 
+import librosa
 import numpy as np
-import pyworld
 import pyrubberband as pyrb
+import pyworld
 import soundfile
 from pydub import AudioSegment
 
 from . import utau, utils
-from .exceptions import FrqNotFoundError
 
 # disable numpy pickle load/dump (we don't use object arrays).
 np.save = functools.partial(np.save, allow_pickle=False)
@@ -98,6 +99,28 @@ class Resampler(abc.ABC):
         return consonant, vowel, duration
 
     @abc.abstractmethod
+    def pitch(self, note: Note) -> AudioSegment:
+        """Pitch the consonant and vowel.
+
+        Args:
+            note: The note to pitch.
+
+        Returns:
+            The pitched note's wavfile, as an audio segment.
+        """
+
+    @abc.abstractmethod
+    def stretch(self, vowel: AudioSegment, ratio: float) -> AudioSegment:
+        """Stretch the vowel according to ratio.
+
+        Args:
+            vowel: The vowel to stretch.
+            ratio: How long to stretch the vowel (duration divided by stretched duration).
+
+        Returns:
+            The stretched vowel.
+        """
+
     def render(
         self, note: Union[Note, Rest], next_note: Optional[Union[Note, Rest]] = None
     ) -> AudioSegment:
@@ -112,109 +135,10 @@ class Resampler(abc.ABC):
         Returns:
             The pitched and stretched audio segment.
         """
-
-    @abc.abstractmethod
-    def gen_frq(self, wavfile: pathlib.Path, force: bool = False):
-        """Generate .frq files (or the files that this resampler uses) to speed up rendering.
-
-        Args:
-            wavfile: The wavfile to generate .frq files for.
-                The parent folder is the voicebank.
-            force: Whether or not to generate the frq if it already has been.
-                Defaults to False.
-        """
-
-    def gen_frq_all(self, force: bool = False):
-        """Generate .frq files for all wavfiles in a voicebank.
-
-        Args:
-            force: Same meaning as in .gen_frq().
-        """
-
-        total = len(self.voicebank.wavfiles)
-        for count, wavfile in enumerate(self.voicebank.wavfiles, start=1):
-            _log.debug(f"[resampler] generating frq {count} of {total} ({wavfile})")
-            self.gen_frq(wavfile, force=force)
-
-    @abc.abstractmethod
-    def load_frq(self, entry: utau.Entry) -> Tuple[np.ndarray, ...]:
-        """Load previously generated .frq files.
-
-        Args:
-            entry: The voicebank entry to load the .frq file(s) for.
-
-        Returns:
-            A variable-length tuple of numpy arrays.
-
-        Raises:
-            FrqNotFoundError, if the frq files have not been generated beforehand.
-        """
-
-
-class WorldResampler(Resampler):
-
-    # these files are stored in native NumPy format.
-    # **NOT** compatible with other resamplers!
-    FRQS = (".dio.npy", ".star.npy", ".platinum.npy")
-
-    def gen_frq(self, wavfile, force=False):
-
-        frq_paths = [wavfile.with_suffix(ext) for ext in self.FRQS]
-        if all(frq.is_file() for frq in frq_paths) and not force:
-            return
-
-        wav, srate = soundfile.read(wavfile)
-        f0, sp, ap = pyworld.wav2world(wav, srate)
-
-        if not f0.nonzero()[0].size:
-            raise RuntimeError(f"f0 estimation failed for {wavfile}!!!")
-
-        for frq_path, array in zip(frq_paths, (f0, sp, ap)):
-            np.save(frq_path, array)
-
-    def load_frq(self, entry):
-        frqs = []
-
-        for ext in self.FRQS:
-
-            try:
-                array = np.load(entry.wav.with_suffix(ext))
-
-            except FileNotFoundError:
-                raise FrqNotFoundError(entry.wav)
-
-            frqs.append(array)
-
-        return tuple(frqs)
-
-    def _pitch(self, note):
-        f0, sp, ap = self.load_frq(note.entry)
-        sr = utils.srate(note.entry.wav)
-
-        # estimate pitch
-        # get rid of zero values, average will be much less accurate.
-        hz = np.average(f0[f0.nonzero()])
-
-        note_hz = utils.Pitch(semitone=note.pitch).hz
-
-        # add the difference
-        f0 += note_hz - hz
-
-        # FIXME: some singing noises are grazed
-        # i.e _い.wav (in teto voicebank).
-        # https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder/issues/61
-        return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
-
-    def _stretch(self, vowel, ratio):
-        x, fs = utils.seg2arr(vowel)
-        y = pyrb.time_stretch(x, fs, ratio)
-        return utils.arr2seg(y, fs)
-
-    def render(self, note, next_note=None):
         if isinstance(note, Rest):
             return AudioSegment.silent(note.duration)
 
-        audio = self._pitch(note)
+        audio = self.pitch(note)
 
         consonant, vowel, phoneme_duration = self.slice(audio, note.entry)
 
@@ -234,11 +158,132 @@ class WorldResampler(Resampler):
             # vowel_loop = AudioSegment.silent(vowel_loop_dur).overlay(vowel, loop=True)
             # stretch instead, looping causes clicking noises
             ratio = vowel_loop_dur / len(vowel)
-            vowel_loop = self._stretch(vowel, ratio)
+            vowel_loop = self.stretch(vowel, ratio)
 
             render = consonant + vowel_loop
 
         return render
+
+    @abc.abstractmethod
+    def gen_frq(
+        self, wavfile: pathlib.Path, force: bool = False
+    ) -> Union[np.ndarray, Tuple[np.ndarray, ...]]:
+        """Generate a .frq file (or the file(s) that this resampler uses) to speed up rendering.
+
+        Args:
+            wavfile: The wavfile to generate a .frq file for.
+                The parent folder is the voicebank.
+            force: Whether or not to generate the frq if it already has been.
+                Defaults to False.
+
+        Returns:
+            The generated frq file, as a tuple of numpy arrays.
+        """
+
+    def gen_frq_all(self, force: bool = False):
+        """Generate .frq files for all wavfiles in a voicebank.
+
+        Args:
+            force: Same meaning as in .gen_frq().
+        """
+
+        total = len(self.voicebank.wavfiles)
+        for count, wavfile in enumerate(self.voicebank.wavfiles, start=1):
+            _log.debug(f"[resampler] generating frq {count} of {total} ({wavfile})")
+            self.gen_frq(wavfile, force=force)
+
+
+class WorldResampler(Resampler):
+
+    # this file is stored in native NumPy format.
+    # **NOT** compatible with other resamplers!
+    FRQ = ".world.npz"
+
+    def gen_frq(self, wavfile, force=False):
+
+        frq_path = wavfile.with_suffix(self.FRQ)
+
+        if not frq_path.is_file() or force:
+
+            wav, srate = soundfile.read(wavfile)
+            f0, sp, ap = pyworld.wav2world(wav, srate)
+
+            if not f0.nonzero()[0].size:
+                raise RuntimeError(f"f0 estimation failed for {wavfile}!!!")
+
+            np.savez(frq_path, **{"f0": f0, "sp": sp, "ap": ap})
+
+        else:
+            frq = np.load(frq_path)
+            f0, sp, ap = [frq[n] for n in ("f0", "sp", "ap")]
+
+        return f0, sp, ap
+
+    def pitch(self, note):
+        f0, sp, ap = self.gen_frq(note.entry.wav)
+        sr = utils.srate(note.entry.wav)
+
+        # estimate pitch
+        # get rid of zero values, average will be much less accurate.
+        hz = np.average(f0[f0.nonzero()])
+
+        note_hz = utils.Pitch(semitone=note.pitch).hz
+
+        # add the difference
+        f0 += note_hz - hz
+
+        # FIXME: some singing noises are grazed
+        # i.e _い.wav (in teto voicebank).
+        # https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder/issues/61
+        return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
+
+    def stretch(self, vowel, ratio):
+        x, fs = utils.seg2arr(vowel)
+        y = pyrb.time_stretch(x, fs, ratio)
+        return utils.arr2seg(y, fs)
+
+
+class RosaResampler(Resampler):
+
+    FRQ = ".rosa.npy"
+
+    def gen_frq(self, wavfile, force=False):
+        frq_path = wavfile.with_suffix(self.FRQ)
+
+        if not frq_path.is_file() or force:
+
+            wav, srate = soundfile.read(wavfile)
+
+            # FIXME: pitch detection not working well
+            f0, _, _ = librosa.pyin(
+                wav.T,
+                fmin=librosa.note_to_hz("C2"),
+                fmax=librosa.note_to_hz("C7"),
+                sr=srate,
+            )
+
+            np.save(frq_path, f0)
+
+        else:
+            f0 = np.load(frq_path)
+
+        return f0
+
+    def pitch(self, note):
+        f0 = self.gen_frq(note.entry.wav)
+        wav, srate = soundfile.read(note.entry.wav)
+
+        hz = np.nanmean(f0)
+        semitones = utils.Pitch(hz=hz).semitone
+
+        print(semitones)
+
+        return utils.arr2seg(
+            pyrb.pitch_shift(wav, srate, note.pitch - semitones), srate
+        )
+
+    def stretch(self, vowel, ratio):
+        return WorldResampler.stretch(self, vowel, ratio)
 
 
 # nicer way of retreving resamplers.
