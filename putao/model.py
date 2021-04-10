@@ -4,7 +4,6 @@
 import abc
 import functools
 import logging
-import math
 import pathlib
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union
@@ -230,15 +229,19 @@ class WorldResampler(Resampler):
         note_hz = utils.Pitch(semitone=note.pitch).hz
 
         # add the difference
-        f0 += note_hz - hz
+        f0[f0.nonzero()] += note_hz - hz
 
         # FIXME: some singing noises are grazed
         # i.e _い.wav (in teto voicebank).
         # https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder/issues/61
-        return utils.arr2seg(pyworld.synthesize(f0, sp, ap, sr), sr)
+        arr = pyworld.synthesize(f0, sp, ap, sr)
+        seg = utils.arr2seg(arr, sr)
+        return seg
 
     def stretch(self, vowel, ratio):
-        x, fs = utils.seg2arr(vowel)
+        x = utils.seg2arr(vowel)
+        fs = vowel.frame_rate
+        # time stretching fails??
         y = pyrb.time_stretch(x, fs, ratio)
         return utils.arr2seg(y, fs)
 
@@ -274,9 +277,7 @@ class RosaResampler(Resampler):
         wav, srate = soundfile.read(note.entry.wav)
 
         hz = np.nanmean(f0)
-        semitones = utils.Pitch(hz=hz).semitone
-
-        print(semitones)
+        semitones = utils.Pitch(hz=hz)._semitone
 
         return utils.arr2seg(
             pyrb.pitch_shift(wav, srate, note.pitch - semitones), srate

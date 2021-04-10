@@ -7,7 +7,7 @@ import math
 import pathlib
 import re
 import wave
-from typing import Tuple, Union
+from typing import Union
 
 import numpy as np
 import pyworld
@@ -18,6 +18,7 @@ from .exceptions import ConversionError
 
 
 SAMPLE_RATE = 44100
+CHANNELS = 2
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
 
@@ -49,12 +50,16 @@ class Pitch:
         ((fmt, value),) = kwargs.items()
 
         if fmt == "semitone":
-            self.semitone = value
+            self._semitone = value
         else:
-            self.semitone = getattr(self, f"_from_{fmt}")(value)
+            self._semitone = getattr(self, f"_from_{fmt}")(value)
 
-        if self.semitone is None:
+        if self._semitone is None:
             raise ConversionError(f"invalid input: {value}")
+
+    @property
+    def semitone(self) -> int:
+        return round(self._semitone)
 
     @property
     def note(self) -> str:
@@ -92,46 +97,13 @@ class Pitch:
 
     @classmethod
     def _from_hz(cls, hz):
-        return round(12 * math.log2(hz / 440) + 58)
+        return 12 * math.log2(hz / 440) + 58
 
 
 def srate(wav: Union[str, pathlib.Path]) -> int:
     """Get the sample rate of a wavfile."""
 
     return wave.open(open(wav, "rb")).getframerate()
-
-
-def arr2seg(array: np.ndarray, srate: int) -> AudioSegment:
-    """Convert a (numpy) wav array to a audio segment.
-
-    Args:
-        array: The wav array to convert.
-        srate: The sample rate of the wav.
-
-    Returns:
-        The pydub audiosegment.
-    """
-
-    with io.BytesIO() as buf:
-        soundfile.write(buf, array, srate, format="wav")
-
-        return AudioSegment.from_file(buf, format="wav")
-
-
-def seg2arr(seg: AudioSegment) -> Tuple[np.ndarray, int]:
-    """Convert a audio segment into a numpy array.
-
-    Args:
-        seg: The audio segment to convert.
-
-    Returns:
-        A two-tuple of (array, sample_rate).
-    """
-
-    with io.BytesIO() as buf:
-        seg.export(buf, format="wav")
-
-        return soundfile.read(buf)
 
 
 def duration(length: int, bpm: int) -> int:
@@ -158,3 +130,67 @@ def sine_f0(duration: float, srate: int) -> np.ndarray:
 
     f0 = pyworld.stonemask(sine_arr, *pyworld.dio(sine_arr, srate), srate)
     return f0
+
+
+def _is_float(dtype):
+    return dtype.kind in np.typecodes["AllFloat"]
+
+
+def _is_int(dtype):
+    return dtype.kind in np.typecodes["AllInteger"]
+
+
+def scale(arr: np.ndarray, dtype: np.dtype) -> np.ndarray:
+    """Scale a wavfile array to another format.
+
+    Args:
+        arr: The wavfile array to scale.
+        to: The format to scale to, as a dtype.
+
+    Returns:
+        The scaled wavfile.
+    """
+
+    if np.can_cast(arr.dtype, dtype, casting="same_kind"):
+        arr = arr.astype(dtype)
+
+    else:
+        # scale values
+        if _is_int(arr.dtype) and _is_float(dtype):
+
+            scale = np.iinfo(arr.dtype).max
+            arr = (arr / scale).astype(dtype)
+
+        elif _is_float(arr.dtype) and _is_int(dtype):
+
+            scale = np.iinfo(dtype).max
+            arr = (arr * scale).astype(dtype)
+
+    return arr
+
+
+def seg2arr(seg: AudioSegment) -> np.ndarray:
+    """Convert an AudioSegment to a numpy array."""
+
+    channels = seg.split_to_mono()
+    samples = [c.get_array_of_samples() for c in channels]
+
+    arr = np.array(samples).T.astype(np.float64)
+    arr /= np.iinfo(samples[0].typecode).max
+
+    return arr
+
+
+def arr2seg(arr: np.ndarray, srate: int) -> AudioSegment:
+    """Convert a numpy array to an AudioSegment."""
+
+    # make sure arr is in 16-bit int format
+    if not _is_int(arr.dtype):
+        arr = scale(arr, np.dtype("int16"))
+
+    return AudioSegment(
+        arr.tobytes(),
+        frame_rate=srate,
+        sample_width=arr.dtype.itemsize,
+        channels=len(arr.shape),
+    )

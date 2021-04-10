@@ -10,7 +10,7 @@ from typing import Any, Dict, IO, List, Optional, Union
 
 from pydub import AudioSegment
 
-from . import model, utau
+from . import model, utau, utils
 from .exceptions import TrackError, ProjectError, FrqNotFoundError
 
 _log = logging.getLogger("putao")
@@ -92,6 +92,11 @@ class Track:
             except Exception as e:
                 _log.critical(f"[track] failed to render note {count} ({note})!!!")
                 raise e
+
+            # set mono channels and CD-quality sample rate
+            render = render.set_frame_rate(utils.SAMPLE_RATE).set_channels(
+                utils.CHANNELS
+            )
 
             # extend final render (so overlay won't be truncated)
             track_render += AudioSegment.silent(len(render) - overlap)
