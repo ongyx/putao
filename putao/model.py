@@ -141,10 +141,13 @@ class Resampler(abc.ABC):
 
         consonant, vowel, phoneme_duration = self.slice(audio, note.entry)
 
+        # FIXME: overlap/preutterance does not seem to be correct
         actual_duration = note.entry.preutterance + note.duration
 
         if next_note is not None and isinstance(next_note, Note):
             actual_duration += next_note.entry.overlap - next_note.entry.preutterance
+
+        actual_duration = note.duration
 
         if actual_duration < phoneme_duration:
             # just cut off the end of the phoneme
@@ -204,7 +207,7 @@ class WorldResampler(Resampler):
 
         if not frq_path.is_file() or force:
 
-            wav, srate = soundfile.read(wavfile)
+            wav, srate = soundfile.read(str(wavfile))
             f0, sp, ap = pyworld.wav2world(wav, srate)
 
             if not f0.nonzero()[0].size:
@@ -274,7 +277,7 @@ class RosaResampler(Resampler):
 
     def pitch(self, note):
         f0 = self.gen_frq(note.entry.wav)
-        wav, srate = soundfile.read(note.entry.wav)
+        wav, srate = soundfile.read(str(note.entry.wav))
 
         hz = np.nanmean(f0)
         semitones = utils.Pitch(hz=hz)._semitone

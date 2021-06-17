@@ -63,8 +63,14 @@ class Entry:
         Returns:
             The entry object.
         """
-        wav, alias, *times = RE_SYLLABLE.findall(entry)[0]
-        times = [int(t) for t in times]
+        try:
+            wav, alias, *times = RE_SYLLABLE.findall(entry)[0]
+            times = [int(t) for t in times]
+        except IndexError:
+            # oto has blank entries (only the filename is in the line)
+            wav = entry.split("=")[0]
+            alias = wav.split(".")[0]
+            times = [0, 0, 0, 0, 0]
 
         return cls(wav, alias, *times)
 
@@ -97,7 +103,7 @@ def parse_oto(oto: Union[str, pathlib.Path]) -> Dict[str, Entry]:
     oto_map = {}
 
     # assuming the voicebank is already utf8...
-    with open(oto) as f:
+    with open(oto, encoding="utf8") as f:
         for _entry in f.readlines():
             entry = Entry.parse(_entry)
             oto_map[entry.alias] = entry
@@ -118,7 +124,7 @@ class Voicebank(c_abc.Mapping):
     """
 
     def __init__(self, path: Union[str, pathlib.Path]):
-        self.path = pathlib.Path(path)
+        self.path = pathlib.Path(path).resolve(strict=True)
 
         self.entries: Dict[str, Entry]
         self.wavfiles: Set[pathlib.Path] = set()

@@ -5,11 +5,11 @@ if [[ "$#" -ne 1 ]]; then
   exit
 fi
 
-JSON_FILE="$1.json"
+JSON_FILE="$1.project"
 
 if [[ ! -f $JSON_FILE ]]; then
   putao new "$1"
 fi
 
-putao import "$1.mml" "$1.json"
-putao render "$1.json"
+putao import "$1.mml" "$1.project"
+putao render "$1.project"
