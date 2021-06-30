@@ -138,4 +138,5 @@ dmypy.json
 cython_debug/
 
 # voicebanks
-examples/morshu
+examples/*.wav
+examples/*.project.gz

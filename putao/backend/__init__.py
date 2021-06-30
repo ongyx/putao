@@ -22,18 +22,21 @@ import pathlib
 import sys
 from typing import IO
 
+from ..core import Project
+
 BACKENDS = [
     p.stem for p in pathlib.Path(__file__).parent.glob("*.py") if p.stem != "__init__"
 ]
 
 
-def loads(data: bytes, fmt: str) -> dict:
-    """Load data according to fmt.
+def loads(data: bytes, fmt: str, project: Project) -> dict:
+    """Load data according to fmt into project.
 
     Args:
         data: The music data to load.
         fmt: Which backend to use to load the music data.
             Available backends are in BACKENDS.
+        project: The project to load the data into.
 
     Returns:
         The data as a project dict.
@@ -49,7 +52,7 @@ def loads(data: bytes, fmt: str) -> dict:
     except ImportError:
         raise RuntimeError(f"format not recognised: {fmt}")
 
-    return backend.loads(data)  # type: ignore
+    return backend.loads(data, project)  # type: ignore
 
 
 def load(fp: IO, *args) -> dict:

@@ -40,12 +40,13 @@ class Entry:
             This should be shorter than the overlap (below).
         overlap: Length of time to extend the previous note into the current note.
             This extension overlaps into the start of the current note.
+        path: The absolute path to the wavfile, as a pathlib.Path object.
 
     Attributes:
         See args.
     """
 
-    wav: pathlib.Path
+    wav: str
     alias: str
     offset: int
     consonant: int
@@ -83,6 +84,9 @@ class Entry:
         }
 
         return cls(**new_entry)
+
+    def path(self) -> pathlib.Path:
+        return pathlib.Path(self.wav)
 
     def dump(self) -> dict:
         """Dump this entry to a dict representation."""
@@ -127,7 +131,7 @@ class Voicebank(c_abc.Mapping):
         self.path = pathlib.Path(path).resolve(strict=True)
 
         self.entries: Dict[str, Entry]
-        self.wavfiles: Set[pathlib.Path] = set()
+        self.wavfiles: Set[str] = set()
 
         _log.debug("parsing oto.ini")
 
@@ -138,7 +142,7 @@ class Voicebank(c_abc.Mapping):
         # wavfiles should be in the same directory as the oto.ini file.
         # make the paths absolute
         for _, entry in self.entries.items():
-            entry.wav = self.path / entry.wav
+            entry.wav = str(self.path / entry.wav)
             self.wavfiles.add(entry.wav)
 
     def __getitem__(self, key):

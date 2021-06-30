@@ -2,7 +2,6 @@
 """Utility functions are kept here."""
 
 import collections
-import io
 import math
 import pathlib
 import re
@@ -11,7 +10,6 @@ from typing import Union
 
 import numpy as np
 import pyworld
-import soundfile
 from pydub import AudioSegment
 
 from .exceptions import ConversionError
@@ -27,7 +25,7 @@ KEYS = {"c": 1, "d": 3, "e": 5, "f": 6, "g": 8, "a": 10, "b": 12}
 NUM_KEYS = {v: k for k, v in KEYS.items()}
 
 _note_length = collections.namedtuple(
-    "note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
+    "_note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
 )
 NOTE_LENGTH = _note_length(1, 2, 4, 8, 16, 32, 64)
 
@@ -115,10 +113,18 @@ def duration(length: int, bpm: int) -> int:
             i.e NOTE_LENGTH.whole (one note), NOTE_LENGTH.half (half note), etc.
         bpm: The tempo of the note in beats per minute.
     """
+
     if length not in NOTE_LENGTH:
         return 0
 
-    return int(((60 / bpm) * (NOTE_LENGTH.quarter / length)) * 1000)
+    # There are 60000 miliseconds in a minute.
+    # Since bpm is beats per minute, bpm / 60000 equals the number of beats per milisecond.
+    # Then, we invert to get miliseconds per beat.
+    # Finally, we multiply it by quarter note length / note length,
+    # because a beat is one quarter note.
+
+    ms_per_beat = 1 / (bpm / 60000)
+    return int(ms_per_beat * (NOTE_LENGTH.quarter / length))
 
 
 def sine_f0(duration: float, srate: int) -> np.ndarray:

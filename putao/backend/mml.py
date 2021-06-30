@@ -53,18 +53,26 @@ Extended syntax:
         Each split is a phoneme.
 """
 
-import collections
+import copy
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 import pyparsing as pp
 
-from putao import utils
+from .. import utils
+from ..core import Project
 
 pp_u = pp.pyparsing_unicode
 
 
 PROPMAP = {"o": "octave", "l": "length", "t": "tempo"}
+
+DEFAULTS = {
+    "octave": 4,
+    "length": utils.NOTE_LENGTH.eighth,
+    "tempo": 120,
+    "lyrics": [],
+}
 
 
 @dataclass
@@ -153,50 +161,39 @@ Parser = _mml_syntax()
 
 
 class Interpreter:
-    def __init__(self, mml: str):
+    def __init__(self, mml: str, project: Project):
         self._tokens = Parser.parseString(mml)
         # per-track variables
-        self._props = {
-            "global": {
-                "octave": 4,
-                "length": utils.NOTE_LENGTH.quarter,
-                "tempo": 120,
-                "lyrics": [],
-            }
-        }
+        self._props = {"global": copy.deepcopy(DEFAULTS)}
 
-        self.tracks: Dict[str, List[dict]] = collections.defaultdict(list)
+        self.project = project
         self.current_track = "global"
 
     def _prop(self) -> dict:
-        return self._props.setdefault(self.current_track, self._props["global"])
+        if self.current_track not in self._props:
+            self._props[self.current_track] = copy.deepcopy(DEFAULTS)
+
+        return self._props[self.current_track]
 
     def note(self, token, track):
         key, length = token.value
 
-        note = {
-            "type": "note",
-            # In mml, we use a 'global' octave so we have to calculate the semitone here.
-            "pitch": utils.Pitch(note=f"{key}{track['octave']}").semitone,
-            "duration": utils.duration(length or track["length"], track["tempo"]),
-        }
+        try:
+            phoneme = next(track["lyrics"])
+        except (StopIteration, KeyError):
+            raise ValueError(f"not enough phonemes in lyrics for note {token.loc}")
 
-        if track["lyrics"]:
-            try:
-                note["phoneme"] = next(track["lyrics"])
-            except StopIteration:
-                raise ValueError(f"not enough phonemes in lyrics for note {token.loc}")
+        # In mml, we use a 'global' octave so we have to calculate the semitone here.
+        pitch = utils.Pitch(note=f"{key}{track['octave']}").semitone
+        duration = utils.duration(length or track["length"], track["tempo"])
 
-        self.tracks[self.current_track].append(note)
+        self.project[self.current_track].note(phoneme, pitch, duration)
 
     def rest(self, token, track):
         length = token.value
 
-        self.tracks[self.current_track].append(
-            {
-                "type": "rest",
-                "duration": utils.duration(length or track["length"], track["tempo"]),
-            }
+        self.project[self.current_track].rest(
+            utils.duration(length or track["length"], track["tempo"])
         )
 
     def prop(self, token, track):
@@ -207,7 +204,13 @@ class Interpreter:
         track["octave"] += token.value
 
     def track(self, token, track):
-        self.current_track = token.value
+        name = token.value
+        self.current_track = name
+
+        if name in self.project:
+            del self.project[name]
+
+        self.project.new_track(name)
 
     def lyrics(self, token, track):
         track["lyrics"] = iter(token.value)
@@ -216,9 +219,9 @@ class Interpreter:
         for token in self._tokens:
             getattr(self, token.name)(token, self._prop())
 
-        return dict(self.tracks)
+        return self.project
 
 
-def loads(data):
-    itpr = Interpreter(data.decode("utf8"))
+def loads(data, project):
+    itpr = Interpreter(data.decode("utf8"), project)
     return itpr.execute()
