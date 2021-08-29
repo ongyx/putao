@@ -169,6 +169,14 @@ class Interpreter:
         self.project = project
         self.current_track = "global"
 
+        self.create_track(self.current_track)
+
+    def create_track(self, name):
+        if name in self.project:
+            del self.project[name]
+
+        self.project.new_track(name)
+
     def _prop(self) -> dict:
         if self.current_track not in self._props:
             self._props[self.current_track] = copy.deepcopy(DEFAULTS)
@@ -207,10 +215,7 @@ class Interpreter:
         name = token.value
         self.current_track = name
 
-        if name in self.project:
-            del self.project[name]
-
-        self.project.new_track(name)
+        self.create_track(name)
 
     def lyrics(self, token, track):
         track["lyrics"] = iter(token.value)

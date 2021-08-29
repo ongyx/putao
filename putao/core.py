@@ -18,7 +18,7 @@ from .resamplers import RESAMPLERS
 from .__version__ import __version__
 from .exceptions import TrackError, ProjectError
 
-_log = logging.getLogger("putao")
+_log = logging.getLogger(__name__)
 
 
 @dataclass

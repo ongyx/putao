@@ -16,12 +16,12 @@ from typing import Dict, Set, Union
 
 import chardet
 
-_log = logging.getLogger("putao")
+_log = logging.getLogger(__name__)
 
 RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 
-CFG_FILE = "oto.ini"
-JSON_CFG_FILE = "oto.json"
+CONFIG_FILE = "oto.ini"
+JSON_CONFIG_FILE = "oto.json"
 
 
 @dataclass
@@ -135,7 +135,7 @@ class Voicebank(c_abc.Mapping):
 
         _log.debug("parsing oto.ini")
 
-        self.entries = parse_oto(self.path / CFG_FILE)
+        self.entries = parse_oto(self.path / CONFIG_FILE)
 
         _log.debug("parsed oto.ini")
 
@@ -155,7 +155,7 @@ class Voicebank(c_abc.Mapping):
         return len(self.entries)
 
     def _load_cfg(self):
-        with self.config_path.open() as f:
+        with self.path.open() as f:
             self.config = json.load(f)
 
         entries = self.config.pop("entries")
@@ -168,7 +168,7 @@ class Voicebank(c_abc.Mapping):
             alias: entry.dump() for alias, entry in self.entries.items()
         }
 
-        with self.config_path.open("w") as f:
+        with self.path.open("w") as f:
             json.dump(config, f, indent=4)
 
 
@@ -235,7 +235,7 @@ def extract(
                 if convert_newlines:
                     text = text.replace("\r\n", "\n")
 
-                full_path.write_text(text)
+                full_path.write_text(text, encoding="UTF8")
 
             else:
                 _log.debug("extracting %s", zinfo.filename)

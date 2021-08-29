@@ -5,13 +5,14 @@ import abc
 import logging
 from typing import Optional, Tuple
 
+import numpy as np
 import pyrubberband as pyrb
 from pydub import AudioSegment
 
 from . import utau, utils
 from .jsonclasses import dataclass
 
-_log = logging.getLogger("putao")
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,7 +33,7 @@ class Rest(Note):
 
 
 class Resampler(abc.ABC):
-    """A resampler renders notes by pitching and streching samples.
+    """A resampler renders notes by pitching and stretching samples.
     Effects may also be applied (i.e portomento).
 
     Args:
@@ -117,13 +118,24 @@ class Resampler(abc.ABC):
             # TODO: enable option for looping?
             ratio = (actual_duration - len(consonant)) / len(vowel)
 
-            # convert to numpy array and back
-            x = utils.seg2arr(vowel)
+            consonant_arr = utils.seg2arr(consonant)
+
+            y = utils.seg2arr(vowel)
             sr = vowel.frame_rate
 
-            y = pyrb.time_stretch(x, sr, ratio)
+            vowel_arr = pyrb.time_stretch(y, sr, ratio)
 
-            render = consonant + utils.arr2seg(y, sr)
+            # The length of consonant and/or vowel may be uneven.
+            # So we have to combine the two as numpy arrays and then convert back to an AudioSegment.
+            render_arr = np.concatenate([consonant_arr, vowel_arr])
+
+            # Conversion may cause more samples in the output as compared to input.
+            # Discard any excess samples.
+            excess = render_arr.shape[0] % consonant.frame_width
+            if excess:
+                render_arr = render_arr[:-excess]
+
+            render = utils.arr2seg(render_arr, sr)
 
         return render
 
@@ -148,7 +160,7 @@ class Resampler(abc.ABC):
 
             duration = entry.preutterance + note.duration
 
-            if isinstance(next_note, Note):
+            if next_note is not None and next_note.syllable:
                 next_entry = self.voicebank[next_note.syllable]
                 duration += next_entry.overlap - next_entry.preutterance
 
