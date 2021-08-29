@@ -32,6 +32,51 @@ class Stopwatch:
         click.echo(f"Elapsed time: {round(end - self.start, 2)}s")
 
 
+class Checkbox:
+    def __init__(self, choices):
+        self.choices = choices
+        self.picked = set()
+
+    def show_choices(self):
+        click.echo(
+            "\n".join(
+                "[{p}] {n}: {c} ".format(
+                    p="x" if c in self.picked else " ", n=n, c=c.name
+                )
+                for n, c in enumerate(self.choices)
+            )
+        )
+
+    def prompt(self, msg):
+        self.picked.clear()
+
+        click.echo(msg)
+
+        while True:
+            self.show_choices()
+            pick = click.prompt("", "", show_default=False)
+
+            if not pick:
+                if self.picked:
+                    break
+                else:
+                    click.echo("No choices made yet!")
+                    continue
+
+            index = int(pick)
+            if not (0 <= index < len(self.choices)):
+                click.echo("Invalid index!")
+                continue
+
+            choice = self.choices[index]
+            if choice not in self.picked:
+                self.picked.add(choice)
+            else:
+                self.picked.remove(choice)
+
+        return self.picked
+
+
 @click.group()
 @click.version_option(__version__)
 def cli():
@@ -40,7 +85,13 @@ def cli():
 
 @cli.command("extract")
 @click.argument("zfile")
-@click.option("-t", "--target", default=".", help="where to extract the voicebank to")
+@click.option(
+    "-t",
+    "--target",
+    default=".",
+    help="where to extract the voicebank to",
+    type=pathlib.Path,
+)
 def v_extract(zfile, target):
     """Extract the voicebank(s) in zfile."""
 
@@ -51,15 +102,26 @@ def v_extract(zfile, target):
         utau.extract(zfile, tempdir)
 
         # find all folders with an oto.ini file
-        voicebanks = [p.parent for p in tempdir.rglob(utau.CONFIG_FILE)]
-        for count, voicebank in enumerate(voicebanks):
-            print(f"{count}: {voicebank.name}")
+        choices = [p.parent for p in tempdir.rglob(utau.CONFIG_FILE)]
 
-        choice = click.prompt("Voicebank to use", 0)
-        voicebank_to_move = voicebanks[choice]
+        chosen = Checkbox(choices).prompt(
+            (
+                "Select voicebanks to extract.\n"
+                "If more than one is selected, it will be appended into one voicebank.\n"
+                "Once you are done selecting, press Enter."
+            )
+        )
 
-        for path in voicebank_to_move.iterdir():
-            shutil.move(path, target)
+        config = []
+
+        for voicebank in chosen:
+            for path in voicebank.iterdir():
+                if path.name == "oto.ini":
+                    config.append(path.read_text("utf8"))
+                else:
+                    shutil.move(str(path), str(target))
+
+        (target / "oto.ini").write_text("\n".join(config), "UTF8")
 
     print("done")
 
