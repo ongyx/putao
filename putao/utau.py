@@ -6,7 +6,6 @@ NOTE: all time values are in miliseconds.
 from __future__ import annotations
 
 import collections.abc as c_abc
-import json
 import logging
 import pathlib
 import re
@@ -22,6 +21,30 @@ RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 
 CONFIG_FILE = "oto.ini"
 JSON_CONFIG_FILE = "oto.json"
+
+
+def unmojibake(text: Union[str, bytes]) -> str:
+    """Re-encode text/bytes to UTF8 from Shift-JIS or other encodings.
+
+    Args:
+        text: The text to re-encode.
+
+    Returns:
+        The UTF8-ified text.
+    """
+
+    if isinstance(text, str):
+        raw = text.encode("cp437")
+    else:
+        # already bytes
+        raw = text
+
+    try:
+        return raw.decode("sjis")
+    except UnicodeDecodeError:
+        # use chardet to figure out encoding
+        encoding = chardet.detect(raw)["encoding"]
+        return raw.decode(encoding)
 
 
 @dataclass
@@ -93,11 +116,13 @@ class Entry:
         return self.__dict__.copy()
 
 
-def parse_oto(oto: Union[str, pathlib.Path]) -> Dict[str, Entry]:
+def parse_oto(oto: Union[str, pathlib.Path], enc: str = "utf8") -> Dict[str, Entry]:
     """Parse an oto.ini file.
 
     Args:
         path: The path to the oto.ini file.
+        enc: The encoding of the file.
+            Most voicebanks are encoded in Shift-JIS, or very rarely UTF-8.
 
     Returns:
         A dict map of alias to an Entry object.
@@ -107,10 +132,16 @@ def parse_oto(oto: Union[str, pathlib.Path]) -> Dict[str, Entry]:
     oto_map = {}
 
     # assuming the voicebank is already utf8...
-    with open(oto, encoding="utf8") as f:
+    with open(oto, encoding=enc) as f:
         for _entry in f.readlines():
             entry = Entry.parse(_entry)
             oto_map[entry.alias] = entry
+
+            if not entry.consonant:
+                _log.warning(f"{entry.alias}: consonant length is zero")
+
+            if not entry.overlap < entry.preutterance:
+                _log.warning(f"{entry.alias}: overlap ({entry.overlap}) should be before preutterance ({entry.preutterance})")
 
     return oto_map
 
@@ -122,8 +153,8 @@ class Voicebank(c_abc.Mapping):
         path: The path to the voicebank.
 
     Attributes:
-        entries: The entries loaded from the oto.ini file.
         path: See args.
+        entries: The entries loaded from the oto.ini file.
         wavfiles: A set of all the wav file paths in oto.ini.
     """
 
@@ -153,47 +184,6 @@ class Voicebank(c_abc.Mapping):
 
     def __len__(self):
         return len(self.entries)
-
-    def _load_cfg(self):
-        with self.path.open() as f:
-            self.config = json.load(f)
-
-        entries = self.config.pop("entries")
-
-        self.entries = {alias: Entry.load(entry) for alias, entry in entries.items()}
-
-    def _dump_cfg(self):
-        config = self.config.copy()
-        config["entries"] = {
-            alias: entry.dump() for alias, entry in self.entries.items()
-        }
-
-        with self.path.open("w") as f:
-            json.dump(config, f, indent=4)
-
-
-def unmojibake(text: Union[str, bytes]) -> str:
-    """Re-encode text/bytes to UTF8 from Shift-JIS or other encodings.
-
-    Args:
-        text: The text to re-encode.
-
-    Returns:
-        The UTF8-ified text.
-    """
-
-    if isinstance(text, str):
-        raw = text.encode("cp437")
-    else:
-        # already bytes
-        raw = text
-
-    try:
-        return raw.decode("sjis")
-    except UnicodeDecodeError:
-        # use chardet to figure out encoding
-        encoding = chardet.detect(raw)["encoding"]
-        return raw.decode(encoding)
 
 
 def is_utf8(zinfo: zipfile.ZipInfo) -> bool:

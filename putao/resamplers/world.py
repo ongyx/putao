@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import pathlib
 from dataclasses import dataclass
 
@@ -10,6 +11,8 @@ import pyworld
 import soundfile
 
 from .. import model, utils
+
+_log = logging.getLogger(__name__)
 
 # this file is stored in native NumPy format.
 # **NOT** compatible with other resamplers!
@@ -69,6 +72,8 @@ class Resampler(model.Resampler):
 
         # add the difference
         frq.f0[frq.f0.nonzero()] += note_hz - hz
+
+        _log.debug(f"pitching note ({note_hz}hz, semitone {note.pitch})")
 
         # FIXME: some singing noises are grazed
         # i.e _い.wav (in teto voicebank).

@@ -3,7 +3,7 @@
 
 import abc
 import logging
-from typing import Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 import pyrubberband as pyrb
@@ -22,6 +22,12 @@ class Note:
     duration: int
     pitch: int
     syllable: str
+
+    def is_rest(self) -> bool:
+        return self.pitch == -1 and not self.syllable
+
+    def entry(self, vb: utau.Voicebank) -> utau.Entry:
+        return vb[self.syllable]
 
 
 @dataclass
@@ -53,6 +59,7 @@ class Resampler(abc.ABC):
     @abc.abstractmethod
     def pitch(self, note: Note) -> AudioSegment:
         """Pitch the note.
+        The length of the note should not change.
 
         Args:
             note: The note to pitch.
@@ -77,10 +84,7 @@ class Resampler(abc.ABC):
             ValueError, if this note is a Rest.
         """
 
-        if not note.syllable:
-            raise ValueError("note is a rest")
-
-        entry = self.voicebank[note.syllable]
+        entry = note.entry(self.voicebank)
 
         # calculate milisecond offsets for the consonant and vowel.
         c_start = entry.offset
@@ -88,25 +92,37 @@ class Resampler(abc.ABC):
         consonant = audio[c_start:c_end]
 
         v_start = c_end
-        v_end = len(audio) - entry.cutoff
+
+        if entry.cutoff < 0:
+            # negative cutoffs are measured from the offset onwards
+            v_end = entry.offset + abs(entry.cutoff)
+        else:
+            v_end = len(audio) - entry.cutoff
+
+        if v_end <= v_start:
+            raise ValueError("vowel length is negative or zero")
+
         vowel = audio[v_start:v_end]
 
         return consonant, vowel
 
     def stretch(
-        self, consonant: AudioSegment, vowel: AudioSegment, duration: int
+        self, consonant: AudioSegment, vowel: AudioSegment, note: Note
     ) -> AudioSegment:
         """Stretch a note by looping/stretching the vowel.
 
         Args:
-            consonant: The consonant part of the note.
-            vowel: The vowel part of the note.
-            duration: The total duration the note should be stretched to.
+            consonant: The consonant segment of the note.
+            vowel: The vowel segment of the note.
+            note: The note itself.
 
         Returns:
             The consonant and stretched/looped vowel as a joined AudioSegment.
         """
 
+        entry = note.entry(self.voicebank)
+
+        duration = entry.preutterance + note.duration
         actual_duration = len(consonant) + len(vowel)
 
         if duration < actual_duration:
@@ -139,31 +155,19 @@ class Resampler(abc.ABC):
 
         return render
 
-    def render(self, note: Note, next_note: Optional[Note]) -> AudioSegment:
+    def render(self, note: Note) -> AudioSegment:
         """Render a note.
         The note is pitched, then sliced and stretched to create the render.
 
         Args:
             note: The note to render.
-            next_note: The next note after the one to render.
-                This is needed to correctly stretch/shorten the note.
-                If there are no notes after this, None should be passed.
+
+        Returns:
+            The rendered note.
         """
 
-        if not note.syllable:
-            render = AudioSegment.silent(note.duration)
+        if note.is_rest():
+            return AudioSegment.silent(note.duration)
 
-        else:
-            entry = self.voicebank[note.syllable]
-
-            consonant, vowel = self.slice(note, self.pitch(note))
-
-            duration = entry.preutterance + note.duration
-
-            if next_note is not None and next_note.syllable:
-                next_entry = self.voicebank[next_note.syllable]
-                duration += next_entry.overlap - next_entry.preutterance
-
-            render = self.stretch(consonant, vowel, duration)
-
-        return render
+        consonant, vowel = self.slice(note, self.pitch(note))
+        return self.stretch(consonant, vowel, note)

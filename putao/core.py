@@ -83,17 +83,6 @@ class Track:
         for count, note in enumerate(self.notes, start=1):
 
             timestamp = len(track_render)
-            overlap = 0
-
-            next_note = None
-
-            try:
-                next_note = self.notes[count + 1]
-                if next_note.syllable:
-                    overlap = self.resampler.voicebank[next_note.syllable].overlap
-            except IndexError:
-                # no more notes
-                pass
 
             _log.debug(
                 "[track] rendering note %s of %s (track duration: %ss)",
@@ -103,20 +92,42 @@ class Track:
             )
 
             try:
-                render = self.resampler.render(note, next_note)
+                render = self.resampler.render(note)
 
             except Exception as e:
                 _log.critical(f"[track] failed to render note {count} ({note})!!!")
                 raise e
 
-            # set mono channels and CD-quality sample rate
+            # set CD-quality sample rate
             render = render.set_frame_rate(utils.SAMPLE_RATE)
 
-            # extend final render (so overlay won't be truncated)
-            track_render += AudioSegment.silent(len(render) - overlap)
+            if note.is_rest():
+                track_render += render
 
-            # overlap this note into previous one
-            track_render = track_render.overlay(render, position=timestamp - overlap)
+            else:
+                entry = note.entry(self.resampler.voicebank)
+
+                start = timestamp - entry.preutterance
+                if start < 0:
+                    timestamp = entry.preutterance
+                    # Pad track render with slience
+                    track_render += AudioSegment.silent(-start)
+                    start = 0
+
+                preutter = track_render[start:timestamp]
+                # keep the audio only up to overlap and slience the rest.
+                preutter = preutter[: entry.overlap] + AudioSegment.silent(
+                    len(preutter) - entry.overlap
+                )
+                # Finally, overlay the preutterance segment of the render.
+                preutter = preutter.overlay(render[: entry.preutterance])
+
+                # Truncate everything after start and append:
+                # - preutterance (overlapped with previous audio)
+                # - postutterance (everything after preutterance)
+                track_render = (
+                    track_render[:start] + preutter + render[entry.preutterance :]
+                )
 
         return track_render
 
