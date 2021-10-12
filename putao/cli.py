@@ -9,7 +9,7 @@ import time
 
 import click
 
-from . import backend, utau
+from . import source, utau
 from .core import Config, Project
 from .resamplers import RESAMPLERS
 
@@ -161,43 +161,25 @@ def p_new(name, output):
     project.dump(config_path)
 
 
-@cli.command("import")
-@click.argument("file")
-@click.argument("proj_file")
-@click.option(
-    "-f",
-    "--fmt",
-    type=click.Choice(backend.BACKENDS),
-    help="external file format",
-)
-def p_import(file, proj_file, fmt):
-    """Import an external file into an existing project in proj_file."""
-
-    file = pathlib.Path(file)
-
-    if not fmt:
-        # guess format using file extension
-        fmt = file.suffix[1:]
-
-    project = Project.load(proj_file)
-
-    with file.open("rb") as f:
-        backend.load(f, fmt, project)
-
-    project.dump(proj_file)
-
-    click.echo("done")
-
-
 @cli.command("render")
 @click.argument("proj_file")
+@click.option("-s", "--source_file", type=pathlib.Path, help="import a source file into the project")
 @click.option("-o", "--output", default="render.wav", help="file to render to")
-def p_render(proj_file, output):
-    """Render a project file."""
+def p_render(proj_file, source_file, output):
+    """Render a project/source file."""
 
     proj = Project.load(proj_file)
 
+    if source_file:
+        # guess format using file extension
+        fmt = source_file.suffix[1:]
+
+        with source_file.open("rb") as f:
+            source.loads(fmt, f.read(), proj)
+
     with Stopwatch():
         proj.render(output)
+
+    proj.dump(proj_file)
 
     click.echo("done")

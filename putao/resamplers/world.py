@@ -73,7 +73,7 @@ class Resampler(model.Resampler):
         # add the difference
         frq.f0[frq.f0.nonzero()] += note_hz - hz
 
-        _log.debug(f"pitching note ({note_hz}hz, semitone {note.pitch})")
+        #_log.debug(f"pitching note ({note_hz}hz, semitone {note.pitch})")
 
         # FIXME: some singing noises are grazed
         # i.e _い.wav (in teto voicebank).

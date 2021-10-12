@@ -137,7 +137,9 @@ class Project(c_abc.MutableMapping):
 
     First create a new track:
 
-    proj = Project(".", 49)  # use the voicebank in curdir, pitched to C4
+    proj = Project(Config(
+        voicebank = "path_to_voicebank"
+    ))
     track = proj.new_track("lead")
 
     If you want to access any existing tracks, use dict notation:

@@ -34,27 +34,21 @@ NOTE: You have to use `putao extract <voicebank zipfile> -t <folder>` so the oto
 
 ## Making a song
 
-Currently, songs can be created like so:
-
-```
-putao project import song.mml -f mml
-```
-
-and then rendered:
-
-```
-putao project render song.json
-```
-
 `.mml` song files are written with an extended form of [Music Macro Language], described below.
+
+Check out some [examples](./examples): to render them, do the following:
+(You need to supply your own UTAU voicebank, though. Make sure to extract with `putao extract` for utf8!).
+
+```
+cd examples
+putao new <name>
+putao render -s <name>.mml
+```
+
+where name is one of the `.mml` files, i.e bad_apple.
 
 putao is CLI-only for now; creating a GUI to make songs is currently high priority,
 and it will be worked on once putao's API is stabilised.
-
-Check out some [examples](./examples): to render them, run `render.sh`.
-This script will create a new project if needed and render the mml file.
-
-You need to supply your own UTAU voicebank, though (make sure to extract with `putao extract` for utf8!).
 
 ## MML Syntax
 
@@ -120,12 +114,11 @@ pip install putao
 On Linux, you may have to install your distro's equivelent of the following packages:
 
 - `libsnffile1`
-- `rubberband-cli`
 
 i.e Debian:
 
 ```
-sudo apt install libsndfile1 rubberband-cli
+sudo apt install libsndfile1
 ```
 
 ## License

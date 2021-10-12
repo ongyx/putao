@@ -5,11 +5,9 @@ import abc
 import logging
 from typing import Tuple
 
-import numpy as np
-import pyrubberband as pyrb
-from pydub import AudioSegment
+from pydub import AudioSegment, effects  # noqa
 
-from . import utau, utils
+from . import utau
 from .jsonclasses import dataclass
 
 _log = logging.getLogger(__name__)
@@ -132,26 +130,10 @@ class Resampler(abc.ABC):
         else:
             # stretch vowel
             # TODO: enable option for looping?
-            ratio = (actual_duration - len(consonant)) / len(vowel)
-
-            consonant_arr = utils.seg2arr(consonant)
-
-            y = utils.seg2arr(vowel)
-            sr = vowel.frame_rate
-
-            vowel_arr = pyrb.time_stretch(y, sr, ratio)
-
-            # The length of consonant and/or vowel may be uneven.
-            # So we have to combine the two as numpy arrays and then convert back to an AudioSegment.
-            render_arr = np.concatenate([consonant_arr, vowel_arr])
-
-            # Conversion may cause more samples in the output as compared to input.
-            # Discard any excess samples.
-            excess = render_arr.shape[0] % consonant.frame_width
-            if excess:
-                render_arr = render_arr[:-excess]
-
-            render = utils.arr2seg(render_arr, sr)
+            vowel_stretch = vowel.speedup(
+                len(vowel) / (actual_duration - len(consonant))
+            )
+            render = consonant + vowel_stretch
 
         return render
 
