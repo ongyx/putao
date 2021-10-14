@@ -15,7 +15,7 @@ from typing import Dict, Set, Union
 
 import chardet
 
-_log = logging.getLogger(__name__)
+_log = logging.getLogger("putao")
 
 RE_SYLLABLE = re.compile(r"(\w+\.wav)=(.+)" + (r",(-?\d+)" * 5))
 

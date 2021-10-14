@@ -12,7 +12,7 @@ import soundfile
 
 from .. import model, utils
 
-_log = logging.getLogger(__name__)
+_log = logging.getLogger("putao")
 
 # this file is stored in native NumPy format.
 # **NOT** compatible with other resamplers!

@@ -10,7 +10,7 @@ from pydub import AudioSegment, effects  # noqa
 from . import utau
 from .jsonclasses import dataclass
 
-_log = logging.getLogger(__name__)
+_log = logging.getLogger("putao")
 
 
 @dataclass

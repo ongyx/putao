@@ -8,12 +8,15 @@ import tempfile
 import time
 
 import click
+import coloredlogs
 
 from . import source, utau
 from .core import Config, Project
 from .resamplers import RESAMPLERS
 
 from .__version__ import __version__
+
+_log = logging.getLogger("putao")
 
 click.option = functools.partial(click.option, show_default=True)  # type: ignore
 
@@ -80,7 +83,7 @@ class Checkbox:
 @click.group()
 @click.version_option(__version__)
 def cli():
-    logging.basicConfig(level=logging.DEBUG)
+    coloredlogs.install(fmt="%(levelname)s %(message)s", level="DEBUG", logger=_log)
 
 
 @cli.command("extract")

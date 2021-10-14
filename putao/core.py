@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections.abc as c_abc
+#import cProfile
 import gzip
 import json
 import logging
@@ -18,8 +19,8 @@ from .resamplers import RESAMPLERS
 from .__version__ import __version__
 from .exceptions import TrackError, ProjectError
 
-_log = logging.getLogger(__name__)
-
+_log = logging.getLogger("putao")
+#_pf = cProfile.Profile()
 
 @dataclass
 class Config:
@@ -79,16 +80,16 @@ class Track:
         """
         track_render = AudioSegment.empty()
         total = len(self.notes)
+        timestamp = 0
+
+        #_pf.enable()
 
         for count, note in enumerate(self.notes, start=1):
-
-            timestamp = len(track_render)
-
             _log.debug(
-                "[track] rendering note %s of %s (track duration: %ss)",
+                "[track:%ss] rendering note %s of %s",
+                timestamp / 1000,
                 count,
                 total,
-                timestamp / 1000,
             )
 
             try:
@@ -114,20 +115,25 @@ class Track:
                     track_render += AudioSegment.silent(-start)
                     start = 0
 
-                preutter = track_render[start:timestamp]
+                overlap = track_render[start:timestamp]
                 # keep the audio only up to overlap and slience the rest.
-                preutter = preutter[: entry.overlap] + AudioSegment.silent(
-                    len(preutter) - entry.overlap
+                preutter = overlap[: entry.overlap] + AudioSegment.silent(
+                    len(overlap) - entry.overlap
                 )
                 # Finally, overlay the preutterance segment of the render.
                 preutter = preutter.overlay(render[: entry.preutterance])
 
+                postutter = render[entry.preutterance:]
+
                 # Truncate everything after start and append:
                 # - preutterance (overlapped with previous audio)
                 # - postutterance (everything after preutterance)
-                track_render = (
-                    track_render[:start] + preutter + render[entry.preutterance :]
-                )
+                track_render = track_render[:start] + preutter + postutter
+
+                timestamp += len(postutter)
+
+        #_pf.disable()
+        #_pf.print_stats(sort="time")
 
         return track_render
 
