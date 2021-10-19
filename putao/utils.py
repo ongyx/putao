@@ -14,88 +14,51 @@ from pydub import AudioSegment
 
 from .exceptions import ConversionError
 
-
 SAMPLE_RATE = 44100
-CHANNELS = 2
 
 RE_NOTE = re.compile(r"^((?i:[cdefgab]))([#b])?(\d+)$")
-
-# in semitones
-KEYS = {"c": 1, "d": 3, "e": 5, "f": 6, "g": 8, "a": 10, "b": 12}
-NUM_KEYS = {v: k for k, v in KEYS.items()}
 
 _note_length = collections.namedtuple(
     "_note_length", "whole half quarter eighth sixteenth thirty_second sixty_fourth"
 )
 NOTE_LENGTH = _note_length(1, 2, 4, 8, 16, 32, 64)
 
+KEYS = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"]
+
 
 class Pitch:
-    """A numerical representation of a musical pitch.
-    This class mainly serves to convert between different formats.
-
-    Args:
-        note: The pitch in scientific pitch notation, i.e C4 (key C, octave 4), C#4 (sharp), Cb4 (flat).
-        semitone: The pitch in absolute number of semitones from C0, i.e 1 (C0), 49 (C4).
-        hz: The pitch in Hertz, i.e 440 hz (A4).
-
-    Raises:
-        ValueError, if exactly one of 'note', 'semitone' or 'hz' is not specified.
-        ConversionError, if the format/input is invalid.
-    """
-
-    def __init__(self, **kwargs):
-        ((fmt, value),) = kwargs.items()
-
-        if fmt == "semitone":
-            self._semitone = value
-        else:
-            self._semitone = getattr(self, f"_from_{fmt}")(value)
-
-        if self._semitone is None:
-            raise ConversionError(f"invalid input: {value}")
+    def __init__(self):
+        self.hz = 0.0
 
     @property
-    def semitone(self) -> int:
-        return round(self._semitone)
+    def midi(self) -> int:
+        return int((12 * math.log2(self.hz / 440)) + 69)
+
+    @midi.setter
+    def midi(self, note: int):
+        self.hz = 440 * (2 ** ((note - 69) / 12))
 
     @property
-    def note(self) -> str:
-        # the key 'b' has semitone value 12, so modulo will be 0
-        key_number = (self.semitone % 12) or 12
+    def spn(self) -> str:
+        semitone = self.midi
 
-        try:
-            key = str(NUM_KEYS[key_number])
-        except KeyError:
-            key = f"{NUM_KEYS[key_number - 1]}#"
+        # the octave range of spn starts from C-1
+        octave = (semitone // 12) - 1
+        key = KEYS[semitone % 12]
 
-        return f"{key.upper()}{self.semitone // 12}"
+        return f"{key}{octave}"
 
-    @classmethod
-    def _from_note(cls, note):
-        try:
-            key, accidental, octave = RE_NOTE.findall(note)[0]
-        except IndexError:
-            return None
+    @spn.setter
+    def spn(self, note: str):
+        key, accidental, octave = RE_NOTE.findall(note)[0]
 
-        semitone = KEYS[key.lower()]
+        semitone = (int(octave) * 12) + KEYS.index(key.lower())
         if accidental == "#":
             semitone += 1
         elif accidental == "b":
             semitone -= 1
 
-        return (int(octave) * 12) + semitone
-
-    @property
-    def hz(self) -> float:
-        # since scientific pitch notation starts from C0,
-        # semitone values also start from 0.
-        # so A4 is semitone 58.
-        return math.pow(math.pow(2, 1 / 12), self.semitone - 58) * 440
-
-    @classmethod
-    def _from_hz(cls, hz):
-        return 12 * math.log2(hz / 440) + 58
+        self.midi = semitone
 
 
 def srate(wav: Union[str, pathlib.Path]) -> int:

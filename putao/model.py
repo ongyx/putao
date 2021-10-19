@@ -22,7 +22,7 @@ class Note:
     syllable: str
 
     def is_rest(self) -> bool:
-        return self.pitch == -1 and not self.syllable
+        return self.pitch == 0 and not self.syllable
 
     def entry(self, vb: utau.Voicebank) -> utau.Entry:
         return vb[self.syllable]
@@ -31,7 +31,7 @@ class Note:
 @dataclass
 class Rest(Note):
     def __init__(self, *args, **kwargs):
-        kwargs["pitch"] = -1
+        kwargs["pitch"] = 0
         kwargs["syllable"] = ""
         super().__init__(*args, **kwargs)
 

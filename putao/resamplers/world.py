@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 import pyworld
 import soundfile
+from pydub import AudioSegment
 
 from .. import model, utils
 
@@ -33,7 +34,8 @@ class Frq:
             data = np.load(path)
 
         else:
-            f0, sp, ap = pyworld.wav2world(*soundfile.read(wavfile))
+            # NOTE: WORLD anaylsis only works on mono-channel float64 samples
+            f0, sp, ap = pyworld.wav2world(*soundfile.read(wavfile, dtype="float64"))
 
             if not f0.nonzero()[0].size:
                 raise RuntimeError(f"f0 estimation failed for {wavfile}!!!")
@@ -68,16 +70,17 @@ class Resampler(model.Resampler):
         # get rid of zero values, average will be much less accurate.
         hz = np.average(frq.f0[frq.f0.nonzero()])
 
-        note_hz = utils.Pitch(semitone=note.pitch).hz
+        p = utils.Pitch()
+        p.midi = note.pitch
+        note_hz = p.hz
 
         # add the difference
         frq.f0[frq.f0.nonzero()] += note_hz - hz
 
-        #_log.debug(f"pitching note ({note_hz}hz, semitone {note.pitch})")
+        # _log.debug(f"pitching note ({note_hz}hz, semitone {note.pitch})")
 
         # FIXME: some singing noises are grazed
         # i.e _い.wav (in teto voicebank).
         # https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder/issues/61
         arr = pyworld.synthesize(frq.f0, frq.sp, frq.ap, sr)
-        seg = utils.arr2seg(arr, sr)
-        return seg
+        return utils.arr2seg(arr, sr)

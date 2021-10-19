@@ -180,7 +180,7 @@ class Interpreter:
 
     def _prop(self) -> dict:
         if self.current_track not in self._props:
-            self._props[self.current_track] = copy.deepcopy(DEFAULTS)
+            self._props[self.current_track] = copy.deepcopy(self._props["global"])
 
         return self._props[self.current_track]
 
@@ -193,10 +193,11 @@ class Interpreter:
             raise ValueError(f"not enough phonemes in lyrics for note {token.loc}")
 
         # In mml, we use a 'global' octave so we have to calculate the semitone here.
-        pitch = utils.Pitch(note=f"{key}{track['octave']}").semitone
+        p = utils.Pitch()
+        p.spn = key + str(track["octave"])
         duration = utils.duration(length or track["length"], track["tempo"])
 
-        self.project[self.current_track].note(phoneme, pitch, duration)
+        self.project[self.current_track].note(phoneme, p.midi, duration)
 
     def rest(self, token, track):
         length = token.value
