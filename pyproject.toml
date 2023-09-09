@@ -1,39 +1,31 @@
-[build-system]
-requires = ["flit_core >=2,<4"]
-build-backend = "flit_core.buildapi"
-
-[tool.flit.metadata]
-module = "putao"
-author = "Ong Yong Xin"
-author-email = "ongyongxin2020+github@gmail.com"
-home-page = "https://github.com/ongyx/putao"
+[tool.poetry]
+name = "putao"
+version = "0.4.0"
+description = "Poor man's UTAU"
+authors = ["Ong Yong Xin <ongyongxin2020+github@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/ongyx/putao"
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
-description-file = "README.md"
-requires = [
-    "chardet>=4.0.0",
-    "click>=7.1.2",
-    "coloredlogs>=15.0.1",
-    "mido>=1.2.9",
-    "numpy>=1.20.0",
-    "pydub>=0.25.1",
-    "pyparsing>=2.4.7",
-    "pyworld>=0.2.12",
-    "SoundFile>=0.10.3",
-]
-requires-python = ">=3.6"
-
-[tool.flit.metadata.requires-extra]
-test = [
-    "pytest>=6.2.2"
+    "Topic :: Multimedia :: Sound/Audio :: Sound Synthesis",
 ]
 
-[tool.flit.scripts]
+[tool.poetry.dependencies]
+python = "^3.11"
+chardet = "^5.2.0"
+click = "^8.1.7"
+mido = "^1.3.0"
+numpy = "^1.25.2"
+pydub = {git = "https://github.com/jiaaro/pydub"}
+pyworld = "^0.3.4"
+soundfile = "^0.12.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.2"
+
+[tool.poetry.scripts]
 putao = "putao.cli:cli"
 
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "-rP"
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
