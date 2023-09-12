@@ -59,7 +59,7 @@ from typing import Any
 
 import pyparsing as pp
 
-from .reg import register
+from . import source
 from .. import utils
 from ..core import Project
 
@@ -229,9 +229,10 @@ class Interpreter:
         return self.project
 
 
-def loads(data, project):
-    itpr = Interpreter(data.decode("utf8"), project)
-    itpr.execute()
+class Source(source.Source):
+    def loads(data, project):
+        itpr = Interpreter(data.decode("utf8"), project)
+        itpr.execute()
 
 
-register("mml", loads)
+Source.reg()

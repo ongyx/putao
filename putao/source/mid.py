@@ -1,146 +1,48 @@
 # coding: utf8
-"""MIDI backend parser.
-NOTE: If a note overlaps with the next, it will be truncated to the start of the next note!
-"""
-
 
 import io
-from dataclasses import dataclass
-from typing import List
 
 import mido
 
+from . import source
 
-@dataclass
-class Event:
-    # start and end is absolute (midi ticks)
-    start: int
-    end: int
-    pitch: int
-    tpb: int
-    tempo: int
 
-    def dump(self):
-        return {
-            "type": "note",
-            "pitch": self.pitch,
-            "duration": int(
-                mido.tick2second(self.end - self.start, self.tpb, self.tempo) * 1000
-            ),
-        }
+class Source(source.Source):
+    """MIDI source.
 
-    def __eq__(self, event):
-        if isinstance(event, Event):
-            return self.pitch == event.pitch
+    If the midi track to import into the project has chords, each note of the chord is seperated into it's own track.
+
+    Options:
+        midi.track: Which track to use as the lead. If track < 0, all tracks are merged.
+            Defaults to -1.
+    """
+
+    def loads(self, data, project):
+        mid = mido.MidiFile(file=io.BytesIO(data))
+
+        track_n = project.config.options.setdefault("midi.track", -1)
+        if track_n < 0:
+            track = mido.merge_tracks(mid.tracks)
         else:
-            return NotImplemented
-
-
-class Song:
-    def __init__(self, data: bytes):
-        self.buf = io.BytesIO(data)
-        self.mid = mido.MidiFile(file=self.buf)
-        self.events: List[Event] = []
-
-        self.parse()
-
-    def parse(self):
+            track = mid.tracks[track_n]
 
         clock = 0
-        next_clock = 0
+        clock_prev = 0
+        track_index = 0
 
-        meta = self.mid.tracks[0]
-        meta_clock = 0
+        note = None
 
-        if any(msg.type == "note_on" for msg in meta):
-            # lead is also meta
-            lead = meta
-        else:
-            lead = self.mid.tracks[1]
-
-        tempo = []
-        tempo_counter = 0
-        for msg in meta:
-            meta_clock += msg.time
-
-            if msg.type == "set_tempo":
-                tempo.append((msg.tempo, meta_clock))
-
-        for count, msg in enumerate(lead):
+        for msg in track:
             clock += msg.time
 
-            current_tempo = tempo[tempo_counter]
+            if not self.is_start(msg):
+                continue
 
-            try:
-                next_tempo = tempo[tempo_counter + 1]
+            if clock != clock_prev:
+                track_index = 0
 
-            except IndexError:
-                pass
-
-            else:
-                if next_tempo[1] <= clock:
-                    # tempo change
-                    current_tempo = next_tempo
-                    tempo_counter += 1
-
-            if msg.type == "note_on":
-                next_clock = clock
-
-                for next_count, next_msg in enumerate(lead[count + 1 :]):
-                    next_clock += next_msg.time
-
-                    if next_msg.type == "note_off" and next_msg.note == msg.note:
-                        break
-
-                self.events.append(
-                    Event(
-                        clock,
-                        next_clock,
-                        msg.note,
-                        self.mid.ticks_per_beat,
-                        current_tempo[0],
-                    )
-                )
-
-    def dump(self):
-        notes = []
-
-        for count, event in enumerate(self.events):
-            try:
-                next_event = self.events[count + 1]
-            except IndexError:
-                next_event = None
-
-            if next_event is not None:
-                rest = next_event.start - event.end
-
-                if rest == 0:
-                    # dump note verbatim.
-                    notes.append(event.dump())
-
-                elif rest > 0:
-                    notes.append(event.dump())
-
-                    # add a rest
-                    notes.append(
-                        {
-                            "type": "rest",
-                            "duration": int(
-                                mido.tick2second(rest, event.tpb, event.tempo) * 1000
-                            ),
-                        }
-                    )
-
-                elif rest < 0:
-                    # overlapping notes, truncate previous one
-                    event.end = next_event.start
-
-                    notes.append(event.dump())
-
-            notes.append(event.dump())
-
-        return {"lead": notes}
-
-
-def loads(data):
-    return Song(data).dump()
+    def is_start(self, note):
+        try:
+            return note.type == "note_on" and note.velocity != 0
+        except AttributeError:
+            return False

@@ -3,34 +3,35 @@
 from __future__ import annotations
 
 import collections.abc as c_abc
-#import cProfile
 import gzip
 import json
 import logging
 import pathlib
-from typing import Dict, IO, List, Optional, Union
+from typing import Any, IO, Dict, List, Optional, Union
 
 from pydub import AudioSegment
 
 from . import model, utau, utils
-from .jsonclasses import dataclass
+from .__version__ import __version__
+from .exceptions import ProjectError, TrackError
+from .jsonclasses import dataclass, field
 from .resamplers import RESAMPLERS
 
-from .__version__ import __version__
-from .exceptions import TrackError, ProjectError
-
 _log = logging.getLogger("putao")
-#_pf = cProfile.Profile()
+
 
 @dataclass
 class Config:
     """A project's configuration.
 
+    name: Project name.
+    author: Project author.
     voicebank: The path to the voicebank.
         The voicebank must be in UTAU format, and must have a oto.ini file.
     resampler: The name of the resampler to use.
         Available resamplers are in the dictionary model.RESAMPLERS.
         If not given, defaults to 'WorldResampler'.
+    options: Generic options for sources and rendering.
     """
 
     name: str = ""
@@ -38,6 +39,8 @@ class Config:
     voicebank: str = "."
     resampler: str = "world"
     version: str = __version__
+
+    options: Dict[str, Any] = field(default_factory=dict)
 
 
 class Track:
@@ -82,7 +85,7 @@ class Track:
         total = len(self.notes)
         timestamp = 0
 
-        #_pf.enable()
+        # _pf.enable()
 
         for count, note in enumerate(self.notes, start=1):
             _log.debug(
@@ -123,7 +126,7 @@ class Track:
                 # Finally, overlay the preutterance segment of the render.
                 preutter = preutter.overlay(render[: entry.preutterance])
 
-                postutter = render[entry.preutterance:]
+                postutter = render[entry.preutterance :]
 
                 # Truncate everything after start and append:
                 # - preutterance (overlapped with previous audio)
@@ -132,8 +135,8 @@ class Track:
 
                 timestamp += len(postutter)
 
-        #_pf.disable()
-        #_pf.print_stats(sort="time")
+        # _pf.disable()
+        # _pf.print_stats(sort="time")
 
         return track_render
 

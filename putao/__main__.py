@@ -1,4 +1,5 @@
 # coding: utf8
+# type: ignore
 
 from .cli import cli
 

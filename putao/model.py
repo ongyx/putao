@@ -101,6 +101,7 @@ class Resampler(abc.ABC):
             raise ValueError("vowel length is negative or zero")
 
         vowel = audio[v_start:v_end]
+        print(len(vowel))
 
         return consonant, vowel
 
