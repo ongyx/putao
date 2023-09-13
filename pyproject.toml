@@ -22,7 +22,7 @@ dependencies = [
     "pydub @ git+https://github.com/jiaaro/pydub@master",
     "pyworld~=0.3.4",
     "soundfile~=0.12.1",
-]    
+]
 
 [[project.authors]]
 name = "Ong Yong Xin"
@@ -44,7 +44,3 @@ path = "src/putao/__about__.py"
 dependencies = [
     "pytest",
 ]
-
-[tool.pyright]
-venvPath = "."
-venv = ".venv"
