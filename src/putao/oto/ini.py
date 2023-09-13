@@ -33,7 +33,10 @@ class ParseError(ValueError):
     line_number: int
 
     def __init__(self, *args, line: str = "", line_number: int = 0):
-        super().__init__(*args)
+        if args:
+            super().__init__(*args)
+        else:
+            super().__init__(f"invalid ini config at line {line_number}: '{line}'")
 
         self.line = line
         self.line_number = line_number
@@ -77,7 +80,7 @@ def parse(line: str) -> Config:
             # The group dictionary must contain key and value.
             return Property(key=m["key"], value=m["value"])
 
-    raise ParseError("invalid ini config", line=line)
+    raise ParseError(line=line)
 
 
 def parse_file(file: TextIO) -> Iterator[Config]:
@@ -94,9 +97,11 @@ def parse_file(file: TextIO) -> Iterator[Config]:
     """
 
     for line_number, line in enumerate(file):
-        try:
-            yield parse(line)
-        except ParseError as e:
-            # Add more context to the parse error.
-            e.line_number = line_number
-            raise e
+        # Ignore blank lines.
+        if line.strip():
+            try:
+                yield parse(line)
+            except ParseError as e:
+                # Add more context to the parse error.
+                e.line_number = line_number
+                raise e

@@ -1,3 +1,5 @@
+import io
+
 import pytest
 
 from putao.oto import ini
@@ -29,3 +31,12 @@ def test_ini_invalid():
 
     with pytest.raises(ini.ParseError):
         assert ini.parse("=empty property key") is None
+
+
+def test_int_blank_line():
+    file = io.StringIO("foo = bar\n\n\n")
+
+    cfg = list(ini.parse_file(file))[0]
+    assert isinstance(cfg, ini.Property)
+    assert cfg.key == "foo"
+    assert cfg.value == "bar"
