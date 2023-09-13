@@ -45,8 +45,7 @@ TEST_FRQ = bytes(
 
 
 def test_frq_load():
-    file = io.BytesIO(TEST_FRQ)
-    fmap = Frq.load(file)
+    fmap = Frq.loads(TEST_FRQ)
 
     assert fmap.samples == 256
     assert fmap.average == 42
@@ -57,10 +56,8 @@ def test_frq_load():
 
 
 def test_frq_dump():
-    file = io.BytesIO(TEST_FRQ)
-    fmap = Frq.load(file)
+    fmap = Frq.loads(TEST_FRQ)
 
-    output = io.BytesIO()
-    fmap.dump(output)
+    output = fmap.dumps()
 
-    assert output.getvalue() == TEST_FRQ
+    assert output == TEST_FRQ

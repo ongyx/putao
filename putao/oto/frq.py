@@ -1,4 +1,5 @@
 import dataclasses
+import io
 import struct
 from typing import Any, BinaryIO, Self
 
@@ -49,22 +50,22 @@ class Frq:
 
     # Frq
 
-    | Section | Offset |
-    | ------- | ------ |
-    | Header  | 0      |
-    | Frame * | 40+    |
+    | Section  | Offset |
+    | -------- | ------ |
+    | Header   | 0      |
+    | Frame(s) | 40     |
 
     # Header (40 bytes)
 
     | Section           | Offset | Value    |
-    | ------------------| ------ | -------- |
+    | ----------------- | ------ | -------- |
     | Magic             | 0      | FREQ0003 |
     | Samples per frame | 8      | int32    |
     | Average F0        | 12     | float64  |
     | Padding           | 20     | (null)   |
     | Number of frames  | 36     | int32    |
 
-    # _Frame (16 bytes)
+    # Frame (16 bytes)
 
     | Section   | Offset | Value   |
     | --------- | ------ | ------- |
@@ -103,6 +104,19 @@ class Frq:
         # Numpy's tofile requires a *real* file with a descriptor, so we have to write the bytes directly.
         file.write(self.frames.tobytes())
 
+    def dumps(self) -> bytes:
+        """Dump the frequency map to a byte string.
+
+        Returns:
+            The frequency map as a byte string.
+        """
+
+        print(self.size)
+
+        with io.BytesIO(bytes([0] * self.size)) as b:
+            self.dump(b)
+            return b.getvalue()
+
     @classmethod
     def load(cls, file: BinaryIO) -> Self:
         """Load a frequency map from a binary file.
@@ -133,6 +147,20 @@ class Frq:
         frames = np.frombuffer(buffer, dtype=_Frame, count=frames_len)
 
         return cls(samples, average, frames)
+
+    @classmethod
+    def loads(cls, data: bytes) -> Self:
+        """Load a frequency map from a byte string.
+
+        Args:
+            data: The byte string to load from.
+
+        Returns:
+            The frequency map.
+        """
+
+        with io.BytesIO(data) as b:
+            return cls.load(b)
 
     @property
     def size(self) -> int:

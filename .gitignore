@@ -161,6 +161,8 @@ cython_debug/
 
 # Examples.
 examples/*.wav
-examples/*.frq
 examples/*.ust
 examples/*.project.gz
+
+# Voicebanks for testing purposes.
+voicebanks/
