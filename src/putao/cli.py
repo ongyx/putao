@@ -9,13 +9,12 @@ import tempfile
 import time
 
 import click
-import coloredlogs
 
 from . import source, utau
 from .core import Config, Project
 from .resamplers import RESAMPLERS
 
-from .__version__ import __version__
+from .__about__ import __version__
 
 _log = logging.getLogger("putao")
 
@@ -84,7 +83,15 @@ class Checkbox:
 @click.group()
 @click.version_option(__version__)
 def cli():
-    coloredlogs.install(fmt="%(levelname)s %(message)s", level="DEBUG", logger=_log)
+    _log.setLevel("DEBUG")
+
+    format = logging.Formatter("%(levelname)s %(message)s")
+
+    stream = logging.StreamHandler()
+    stream.setLevel("DEBUG")
+    stream.setFormatter(format)
+
+    _log.addHandler(stream)
 
 
 @cli.command("extract")
@@ -167,7 +174,12 @@ def p_new(name, output):
 
 @cli.command("render")
 @click.argument("proj_file")
-@click.option("-s", "--source_file", type=pathlib.Path, help="import a source file into the project")
+@click.option(
+    "-s",
+    "--source_file",
+    type=pathlib.Path,
+    help="import a source file into the project",
+)
 @click.option("-o", "--output", default="render.wav", help="file to render to")
 def p_render(proj_file, source_file, output):
     """Render a project/source file."""

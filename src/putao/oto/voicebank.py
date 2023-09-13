@@ -1,4 +1,7 @@
+import io
 import pathlib
+
+import chardet
 
 from putao.oto import ini
 
@@ -12,20 +15,34 @@ class Voicebank:
 
     Attributes:
         dir: The directory where the samples reside.
-            oto.ini must be present inside the directory.
+            An oto.ini file must be present inside the directory.
+        config: The path to the oto.ini file.
         samples: A mapping of sample aliases to the sample itself.
-
-    Args:
-        encoding: The encoding to read the oto.ini file with. Defaults to Shift-JIS.
+        encoding: The file encoding detected from the oto.ini.
     """
 
     dir: pathlib.Path
+    config: pathlib.Path
     samples: dict[str, Sample]
+    encoding: str
 
-    def __init__(self, dir: pathlib.Path, encoding: str = "shift_jis"):
+    def __init__(self, dir: str | pathlib.Path):
+        if isinstance(dir, str):
+            dir = pathlib.Path(dir)
+
         self.dir = dir
+        self.config = dir / CONFIG_FILE
 
-        with (dir / CONFIG_FILE).open(encoding=encoding) as f:
+        with self.config.open("rb") as f:
+            buffer = f.read()
+
+        encoding = chardet.detect(buffer)["encoding"]
+        if encoding is None:
+            raise ValueError(f"encoding detection failed for {self.config}")
+
+        self.encoding = encoding
+
+        with io.StringIO(buffer.decode(encoding)) as f:
             # Parse each ini config into a sample and map them by alias.
             samples = (Sample.parse(c) for c in ini.parse_file(f))
 
