@@ -12,7 +12,6 @@ from typing import Any, IO, Dict, List, Optional, Union
 from pydub import AudioSegment
 
 from . import model, utau, utils
-from .__version__ import __version__
 from .exceptions import ProjectError, TrackError
 from .jsonclasses import dataclass, field
 from .resamplers import RESAMPLERS
@@ -38,7 +37,6 @@ class Config:
     author: str = ""
     voicebank: str = "."
     resampler: str = "world"
-    version: str = __version__
 
     options: Dict[str, Any] = field(default_factory=dict)
 
@@ -172,7 +170,6 @@ class Project(c_abc.MutableMapping):
         config: Optional[Config] = None,
         tracks: Optional[Dict[str, List[model.Note]]] = None,
     ):
-
         self.config = config or Config()
         self.tracks: Dict[str, Track] = {}
 
