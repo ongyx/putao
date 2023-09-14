@@ -85,89 +85,6 @@ class Frq:
     average: float
     frames: np.ndarray
 
-    def dump(self, file: BinaryIO):
-        """Dump the freqeuncy map to a binary file.
-
-        Args:
-            file: The binary file to dump to.
-        """
-
-        file.write(_MAGIC)
-
-        _Int32.write(file, self.samples)
-        _Float64.write(file, self.average)
-
-        file.write(bytes([0] * 16))
-
-        _Int32.write(file, len(self.frames))
-
-        # Numpy's tofile requires a *real* file with a descriptor, so we have to write the bytes directly.
-        file.write(self.frames.tobytes())
-
-    def dumps(self) -> bytes:
-        """Dump the frequency map to a byte string.
-
-        Returns:
-            The frequency map as a byte string.
-        """
-
-        print(self.size)
-
-        with io.BytesIO(bytes([0] * self.size)) as b:
-            self.dump(b)
-            return b.getvalue()
-
-    @classmethod
-    def load(cls, file: BinaryIO) -> Self:
-        """Load a frequency map from a binary file.
-
-        Args:
-            file: The binary file to load from.
-                Files must start with "FREQ0003" in ASCII.
-
-        Returns:
-            The frequency map.
-        """
-
-        # Match the magic numbar.
-        if file.read(len(_MAGIC)) != _MAGIC:
-            raise ValueError("invalid frq file")
-
-        samples = _Int32.read(file)
-        average = _Float64.read(file)
-
-        # Empty padding.
-        file.read(16)
-
-        frames_len = _Int32.read(file)
-
-        # Numpy's {to,from}file requires a *real* file with a descriptor, so we have to use a buffer.
-        buffer = file.read(frames_len * _Frame.itemsize)
-
-        frames = np.frombuffer(buffer, dtype=_Frame, count=frames_len)
-
-        return cls(samples, average, frames)
-
-    @classmethod
-    def loads(cls, data: bytes) -> Self:
-        """Load a frequency map from a byte string.
-
-        Args:
-            data: The byte string to load from.
-
-        Returns:
-            The frequency map.
-        """
-
-        with io.BytesIO(data) as b:
-            return cls.load(b)
-
-    @property
-    def size(self) -> int:
-        """The size of the binary file the frequency map occupies."""
-
-        return 40 + (_Float64.size * self.frames.size)
-
     @property
     def frame_average(self) -> float:
         """The F0 average over the current frames."""
@@ -175,3 +92,80 @@ class Frq:
         kernel = np.ones(_AVERAGE_WINDOW) / _AVERAGE_WINDOW
 
         return np.convolve(self.frames["frequency"], kernel, mode="valid").mean()
+
+
+def dump(frq: Frq, file: BinaryIO):
+    """Dump the freqeuncy map to a binary file.
+
+    Args:
+        file: The binary file to dump to.
+    """
+
+    file.write(_MAGIC)
+
+    _Int32.write(file, frq.samples)
+    _Float64.write(file, frq.average)
+
+    file.write(bytes([0] * 16))
+
+    _Int32.write(file, len(frq.frames))
+
+    # Numpy's tofile requires a *real* file with a descriptor, so we have to write the bytes directly.
+    file.write(frq.frames.tobytes())
+
+
+def dumps(frq: Frq) -> bytes:
+    """Dump the frequency map to a byte string.
+
+    Returns:
+        The frequency map as a byte string.
+    """
+
+    with io.BytesIO() as b:
+        dump(frq, b)
+        return b.getvalue()
+
+
+def load(file: BinaryIO) -> Frq:
+    """Load a frequency map from a binary file.
+
+    Args:
+        file: The binary file to load from.
+            Files must start with "FREQ0003" in ASCII.
+
+    Returns:
+        The frequency map.
+    """
+
+    # Match the magic numbar.
+    if file.read(len(_MAGIC)) != _MAGIC:
+        raise ValueError("invalid frq file")
+
+    samples = _Int32.read(file)
+    average = _Float64.read(file)
+
+    # Empty padding.
+    file.read(16)
+
+    frames_len = _Int32.read(file)
+
+    # Numpy's {to,from}file requires a *real* file with a descriptor, so we have to use a buffer.
+    buffer = file.read(frames_len * _Frame.itemsize)
+
+    frames = np.frombuffer(buffer, dtype=_Frame, count=frames_len)
+
+    return Frq(samples, average, frames)
+
+
+def loads(data: bytes) -> Frq:
+    """Load a frequency map from a byte string.
+
+    Args:
+        data: The byte string to load from.
+
+    Returns:
+        The frequency map.
+    """
+
+    with io.BytesIO(data) as b:
+        return load(b)

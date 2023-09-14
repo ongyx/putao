@@ -164,5 +164,6 @@ examples/*.wav
 examples/*.ust
 examples/*.project.gz
 
-# Voicebanks for testing purposes.
+# Datasets for testing purposes.
+usts/
 voicebanks/
