@@ -4,7 +4,9 @@ from putao.oto import ini, Sample
 
 
 def test_sample():
-    sample = Sample.parse(ini.parse("あ.wav=あ,1,2,3,4,5"))
+    sample = Sample.parse("あ.wav=あ,1,2,3,4,5")
+
+    assert sample is not None
     assert sample.file == "あ.wav"
     assert sample.alias == "あ"
     assert sample.offset == 1
@@ -15,15 +17,12 @@ def test_sample():
 
 
 def test_sample_wrong_param_type():
-    with pytest.raises(ValueError):
-        Sample.parse(ini.parse("a=b,c,d,e,f,g"))
+    assert Sample.parse("a=b,c,d,e,f,g") is None
 
 
 def test_sample_not_enough_params():
-    with pytest.raises(ValueError):
-        Sample.parse(ini.parse("a=b,"))
+    assert Sample.parse("a=b,") is None
 
 
 def test_sample_non_property():
-    with pytest.raises(ValueError):
-        Sample.parse(ini.parse("[lol]"))
+    assert Sample.parse("[lol]") is None

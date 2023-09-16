@@ -26,17 +26,6 @@ def test_ini_property_with_spaces():
 
 
 def test_ini_invalid():
-    with pytest.raises(ini.ParseError):
-        assert ini.parse("[hanging bracket") is None
+    assert ini.parse("[hanging bracket") is None
 
-    with pytest.raises(ini.ParseError):
-        assert ini.parse("=empty property key") is None
-
-
-def test_int_blank_line():
-    file = io.StringIO("foo = bar\n\n\n")
-
-    cfg = list(ini.parse_file(file))[0]
-    assert isinstance(cfg, ini.Property)
-    assert cfg.key == "foo"
-    assert cfg.value == "bar"
+    assert ini.parse("=empty property key") is None

@@ -34,19 +34,17 @@ class Voicebank:
         self.config = dir / CONFIG_FILE
 
         with self.config.open("rb") as f:
-            buffer = f.read()
+            if encoding := detect_encoding(f.readline()):
+                self.encoding = encoding
+            else:
+                raise ValueError(f"encoding detection failed for {self.config}")
 
-        encoding = chardet.detect(buffer)["encoding"]
-        if encoding is None:
-            raise ValueError(f"encoding detection failed for {self.config}")
+            f.seek(0)
 
-        self.encoding = encoding
-
-        with io.StringIO(buffer.decode(encoding)) as f:
             # Parse each ini config into a sample and map them by alias.
-            samples = (Sample.parse(c) for c in ini.parse_file(f))
+            samples = (Sample.parse(line.decode(encoding)) for line in f)
 
-            self.samples = {s.alias: s for s in samples}
+            self.samples = {s.alias: s for s in samples if s}
 
     def path_to(self, sample: Sample) -> pathlib.Path:
         """Returns the absolute path to the sample's audio file.
@@ -57,7 +55,41 @@ class Voicebank:
         Returns:
             The absolute path.
         """
+
+        if self.encoding != "utf_8":
+            # A typical UTAU voicebank is encoded in Shift-JIS,
+            # so file names end up mojibaked when zipped and extracted.
+            # This is due to filenames being encoded as Shift-JIS and decoded as code page 437
+            # which is the historical encoding used for zip files.
+            #
+            # Therefore the file name has to be purposely mojibaked to get the actual path.
+            return self.dir / sample.file.encode(self.encoding).decode("cp437")
+
         return self.dir / sample.file
 
     def __getitem__(self, alias: str) -> Sample:
         return self.samples[alias]
+
+
+def detect_encoding(
+    data: bytes, encodings: list[str] = ["shift_jis", "utf_8"]
+) -> str | None:
+    """Attempt to detect the encoding of data.
+
+    Args:
+        text: The text to detect the encoding of.
+        encodings: A list of possible encodings.
+
+    Returns:
+        The encoding if detection was successful, otherwise None.
+    """
+
+    for encoding in encodings:
+        try:
+            data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        else:
+            return encoding
+
+    return None

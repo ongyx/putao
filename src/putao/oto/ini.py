@@ -21,27 +21,6 @@ REGEX = re.compile(
 )
 
 
-class ParseError(ValueError):
-    """Exception raised when parsing an ini-like config fails.
-
-    Attributes:
-        line: The line which failed to parse.
-        line_number: The line number.
-    """
-
-    line: str
-    line_number: int
-
-    def __init__(self, *args, line: str = "", line_number: int = 0):
-        if args:
-            super().__init__(*args)
-        else:
-            super().__init__(f"invalid ini config at line {line_number}: '{line}'")
-
-        self.line = line
-        self.line_number = line_number
-
-
 @dataclasses.dataclass
 class Section:
     """An INI section, i.e. [name]."""
@@ -57,20 +36,14 @@ class Property:
     value: str
 
 
-Config = Section | Property
-
-
-def parse(line: str) -> Config:
-    """Parse an ini-like line of text into configuration.
+def parse(line: str) -> Section | Property | None:
+    """Parse a line of ini-like config.
 
     Args:
         line: The line to parse.
 
     Returns:
-        The parsed config.
-
-    Raises:
-        ParseError: The line failed to parse.
+        A section, property, or None if the line failed to parse.
     """
 
     if m := REGEX.match(line):
@@ -80,28 +53,4 @@ def parse(line: str) -> Config:
             # The group dictionary must contain key and value.
             return Property(key=m["key"], value=m["value"])
 
-    raise ParseError(line=line)
-
-
-def parse_file(file: TextIO) -> Iterator[Config]:
-    """Parse an ini-like file.
-
-    Args:
-        file: The ini-like file.
-
-    Yields:
-        The config for each line in the file.
-
-    Raises:
-        ParseError: Parsing any of the lines failed.
-    """
-
-    for line_number, line in enumerate(file):
-        # Ignore blank lines.
-        if line.strip():
-            try:
-                yield parse(line)
-            except ParseError as e:
-                # Add more context to the parse error.
-                e.line_number = line_number
-                raise e
+    return None

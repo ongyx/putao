@@ -1,7 +1,26 @@
 import dataclasses
+import re
 from typing import Any, Self
 
-from . import ini
+REGEX = re.compile(
+    r"""
+    # Anchor to the start of the line.
+    ^
+
+    # Match the sample entry (Whitespace around the equals sign is ignored).
+    (?P<file>.+?) =
+        (?P<alias>.+?) ,
+        (?P<offset>\d+) ,
+        (?P<consonant>\d+) ,
+        (?P<cutoff>\d+) ,
+        (?P<preutterance>\d+) ,
+        (?P<overlap>\d+)
+
+    # Anchor to the end of the line.
+    $
+    """,
+    re.VERBOSE,
+)
 
 
 @dataclasses.dataclass
@@ -24,6 +43,8 @@ class Sample:
 
         preutterance: Where the note starts playing from.
             This is usually in the middle of the consonant region where the sample transitions from the consonant to the vowel.
+
+        overlap: Where the previous note's vowel fades out.
     """
 
     file: str
@@ -35,37 +56,26 @@ class Sample:
     overlap: int
 
     @classmethod
-    def parse(cls, cfg: ini.Config) -> Self:
-        """Parse a sample config in an oto.ini file.
+    def parse(cls, entry: str) -> Self | None:
+        """Parse a sample entry in an oto.ini file.
 
         Args:
-            cfg: The sample config.
+            entry: The sample entry.
 
         Returns:
-            The parsed sample entry.
+            The parsed sample.
 
         Raises:
             ValueError: The config could not be parsed.
-            IndexError: There are not enough parameters.
         """
 
-        kwargs: dict[str, Any] = {}
+        if match := REGEX.match(entry):
+            kwargs: dict[str, Any] = match.groupdict()
 
-        if not isinstance(cfg, ini.Property):
-            raise ValueError("config is not an ini property")
+            # These parameters must be converted to int.
+            for p in ["offset", "consonant", "cutoff", "preutterance", "overlap"]:
+                kwargs[p] = int(kwargs[p])
 
-        kwargs["file"] = cfg.key
+            return cls(**kwargs)
 
-        params = cfg.value.split(",")
-
-        # First parameter is the sample's alias.
-        kwargs["alias"] = params[0]
-
-        # The rest of the parameters must be converted to int.
-        for i, p in enumerate(
-            ["offset", "consonant", "cutoff", "preutterance", "overlap"],
-            start=1,
-        ):
-            kwargs[p] = int(params[i])
-
-        return cls(**kwargs)
+        return None
