@@ -1,6 +1,6 @@
 import pytest
 
-from putao.oto import ini, Sample
+from putao.oto import Sample
 
 
 def test_sample():

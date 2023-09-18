@@ -1,5 +1,4 @@
-"""Compatibility modules for reading UTAU voicebanks and UTAU Sequence Texts (USTs).
-"""
+"""This module provides classes for reading UTAU voicebanks."""
 
 from .frq import Frq
 from .sample import Sample

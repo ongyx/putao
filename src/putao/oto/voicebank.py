@@ -1,10 +1,6 @@
 import io
 import pathlib
 
-import chardet
-
-from putao.oto import ini
-
 from .sample import Sample
 
 CONFIG_FILE = "oto.ini"
@@ -19,6 +15,7 @@ class Voicebank:
         config: The path to the oto.ini file.
         samples: A mapping of sample aliases to the sample itself.
         encoding: The file encoding detected from the oto.ini.
+            If encoding is None, encoding detection is attempted.
     """
 
     dir: pathlib.Path
@@ -26,7 +23,7 @@ class Voicebank:
     samples: dict[str, Sample]
     encoding: str
 
-    def __init__(self, dir: str | pathlib.Path):
+    def __init__(self, dir: str | pathlib.Path, encoding: str | None = None):
         if isinstance(dir, str):
             dir = pathlib.Path(dir)
 
@@ -34,10 +31,11 @@ class Voicebank:
         self.config = dir / CONFIG_FILE
 
         with self.config.open("rb") as f:
-            if encoding := detect_encoding(f.readline()):
-                self.encoding = encoding
-            else:
+            encoding = encoding or detect_encoding(f.readline())
+            if encoding is None:
                 raise ValueError(f"encoding detection failed for {self.config}")
+
+            self.encoding = encoding
 
             f.seek(0)
 
