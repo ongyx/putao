@@ -62,6 +62,11 @@ class Song:
         ini.dump(config, file)
 
     @classmethod
+    def from_str(cls, text: str) -> Self:
+        with io.StringIO(text) as buf:
+            return cls(buf)
+
+    @classmethod
     def from_path(cls, path: str | pathlib.Path, encoding: str = "shift_jis") -> Self:
         if isinstance(path, str):
             path = pathlib.Path(path)

@@ -24,14 +24,14 @@ REGEX = re.compile(
 )
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class Section:
     """An INI section, i.e. [name]."""
 
     name: str
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class Property:
     """An INI property, i.e. key=value."""
 

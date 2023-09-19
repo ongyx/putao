@@ -41,7 +41,7 @@ _Float64 = Value("<d")
 _Frame = np.dtype([("frequency", "<f8"), ("amplitude", "<f8")])
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class Frq:
     """A frequency map of a voice sample.
     Frequency maps are binary files that store the fundamental frequency (F0) and amplitude of voice samples in order to pitch them to a note.

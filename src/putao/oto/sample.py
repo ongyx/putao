@@ -23,7 +23,7 @@ REGEX = re.compile(
 )
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class Sample:
     """A voice sample in a voicebank. All int values are in miliseconds.
 
