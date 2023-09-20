@@ -17,12 +17,15 @@ def test_sample():
 
 
 def test_sample_wrong_param_type():
-    assert Sample.parse("a=b,c,d,e,f,g") is None
+    with pytest.raises(ValueError):
+        Sample.parse("a=b,c,d,e,f,g")
 
 
 def test_sample_not_enough_params():
-    assert Sample.parse("a=b,") is None
+    with pytest.raises(ValueError):
+        Sample.parse("a=b,")
 
 
 def test_sample_non_property():
-    assert Sample.parse("[lol]") is None
+    with pytest.raises(ValueError):
+        Sample.parse("[lol]")

@@ -15,13 +15,17 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Sound Synthesis",
 ]
 dependencies = [
-    "click~=8.1.7",
-    "mido~=1.3.0",
-    "numpy~=1.25.2",
+    "click>=8.1.7",
+    "librosa>=0.10.0",
+    "mido>=1.3.0",
+    # librosa depends on numba which requires a specific version of numpy.
+    # If a newer version is specified, numba has to be built from source
+    # instead of installed via a binary wheel.
+    "numpy>=1.24",
     "pydub @ git+https://github.com/jiaaro/pydub@master",
-    "pyparsing~=3.1.1",
-    "pyworld~=0.3.4",
-    "soundfile~=0.12.1",
+    "pyparsing>=3.1.1",
+    "pyworld>=0.3.4",
+    "soundfile>=0.12.1",
 ]
 
 [[project.authors]]

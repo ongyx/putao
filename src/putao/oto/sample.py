@@ -56,7 +56,7 @@ class Sample:
     overlap: int
 
     @classmethod
-    def parse(cls, entry: str) -> Self | None:
+    def parse(cls, entry: str) -> Self:
         """Parse a sample entry in an oto.ini file.
 
         Args:
@@ -78,4 +78,4 @@ class Sample:
 
             return cls(**kwargs)
 
-        return None
+        raise ValueError(f"sample entry is invalid: '{entry}'")

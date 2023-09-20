@@ -40,7 +40,8 @@ class Voicebank:
             f.seek(0)
 
             # Parse each ini config into a sample and map them by alias.
-            samples = (Sample.parse(line.decode(encoding)) for line in f)
+            # NOTE: The RE end-of-line anchor can't match CRLF newlines, hence the need for rstrip().
+            samples = (Sample.parse(line.decode(encoding).rstrip()) for line in f)
 
             self.samples = {s.alias: s for s in samples if s}
 
