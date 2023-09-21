@@ -9,6 +9,12 @@ CONFIG_FILE = "oto.ini"
 class Voicebank:
     """A collection of voice samples.
 
+    A typical UTAU voicebank contains an `oto.ini` configuration file,
+    any number of waveform voice samples (`.wav`), and frequnecy maps (`.frq`) for those samples.
+
+    Voicebanks may be encoded in UTF-8 or Shift-JIS,
+    but filenames may be mojibaked as code page 437 when extracted from a zip file on a non-Shift-JIS locale.
+
     Attributes:
         dir: The directory where the samples reside.
             An oto.ini file must be present inside the directory.

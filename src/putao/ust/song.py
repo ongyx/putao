@@ -28,6 +28,26 @@ def _parse(line: str) -> ini.Section | ini.Property | None:
 
 
 class Song:
+    """An arrangement of notes.
+
+    UTAU Sequence Texts are ini-like files with several sections:
+    * `#VERSION`: UST version in the format `UST Version(version)`.
+    * `#SETTING`: Settings for the UST name and track rendering.
+    * `#0000` to `#9999`: The track notes.
+    * `#TRACKEND`: End of track marker.
+
+    Attributes:
+        version: The UST version.
+        settings: Rendering configuration for the UST.
+        notes: The UST notes.
+
+    Args:
+        file: The UST file to parse into a song.
+
+    Raises:
+        ValueError: Parsing the UST file failed.
+    """
+
     version: str
     settings: dict[str, str]
     notes: list[dict[str, str]]
@@ -42,7 +62,13 @@ class Song:
         # Assuming notes are in contiguous order.
         self.notes = [p for s, p in config.items() if RE_NOTE.match(s)]
 
-    def write_to(self, file: TextIO):
+    def save(self, file: TextIO):
+        """Save the song in UST format.
+
+        Args:
+            file: The file to save to.
+        """
+
         if len(self.notes) > NOTE_LIMIT:
             raise ValueError(f"too many notes: the limit is {NOTE_LIMIT}")
 
@@ -63,11 +89,30 @@ class Song:
 
     @classmethod
     def from_str(cls, text: str) -> Self:
+        """Parse a UST text into a song.
+
+        Args:
+            text: The UST text to parse.
+
+        Returns:
+            The parsed song.
+        """
+
         with io.StringIO(text) as buf:
             return cls(buf)
 
     @classmethod
     def from_path(cls, path: str | pathlib.Path, encoding: str = "shift_jis") -> Self:
+        """Parse a UST file at path into a song.
+
+        Args:
+            path: The UST file path.
+            encoding: The UST file encoding. Defaults to Shift-JIS.
+
+        Returns:
+            The parsed song.
+        """
+
         if isinstance(path, str):
             path = pathlib.Path(path)
 
