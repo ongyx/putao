@@ -6,7 +6,6 @@ from putao.oto import Sample
 def test_sample():
     sample = Sample.parse("あ.wav=あ,1,2,3,4,5")
 
-    assert sample is not None
     assert sample.file == "あ.wav"
     assert sample.alias == "あ"
     assert sample.offset == 1
@@ -14,6 +13,18 @@ def test_sample():
     assert sample.cutoff == 3
     assert sample.preutterance == 4
     assert sample.overlap == 5
+
+
+def test_sample_negative():
+    sample = Sample.parse("a.wav=a,-1,-2,-3,-4,-5")
+
+    assert sample.file == "a.wav"
+    assert sample.alias == "a"
+    assert sample.offset == -1
+    assert sample.consonant == -2
+    assert sample.cutoff == -3
+    assert sample.preutterance == -4
+    assert sample.overlap == -5
 
 
 def test_sample_wrong_param_type():

@@ -1,26 +1,7 @@
 import dataclasses
-import re
 from typing import Any, Self
 
-REGEX = re.compile(
-    r"""
-    # Anchor to the start of the line.
-    ^
-
-    # Match the sample entry (Whitespace around the equals sign is ignored).
-    (?P<file>.+?) =
-        (?P<alias>.+?) ,
-        (?P<offset>\d+) ,
-        (?P<consonant>\d+) ,
-        (?P<cutoff>\d+) ,
-        (?P<preutterance>\d+) ,
-        (?P<overlap>\d+)
-
-    # Anchor to the end of the line.
-    $
-    """,
-    re.VERBOSE,
-)
+from .. import ini
 
 
 @dataclasses.dataclass(slots=True)
@@ -69,13 +50,21 @@ class Sample:
             ValueError: The config could not be parsed.
         """
 
-        if match := REGEX.match(entry):
-            kwargs: dict[str, Any] = match.groupdict()
+        config = ini.parse(entry)
+        if not isinstance(config, ini.Property):
+            raise ValueError(f"sample entry is invalid: '{entry}'")
 
+        file = config.key
+        alias, *params = config.value.split(",")
+
+        return cls(
+            file=file,
+            alias=alias,
             # These parameters must be converted to int.
-            for p in ["offset", "consonant", "cutoff", "preutterance", "overlap"]:
-                kwargs[p] = int(kwargs[p])
-
-            return cls(**kwargs)
-
-        raise ValueError(f"sample entry is invalid: '{entry}'")
+            **{
+                k: int(v)
+                for k, v in zip(
+                    ["offset", "consonant", "cutoff", "preutterance", "overlap"], params
+                )
+            },
+        )

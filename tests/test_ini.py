@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from putao.ust import ini
+from putao import ini
 
 
 def test_ini_section():

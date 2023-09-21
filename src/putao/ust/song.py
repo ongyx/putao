@@ -3,7 +3,7 @@ import pathlib
 import re
 from typing import Iterator, Self, TextIO
 
-from . import ini
+from .. import ini
 
 NOTE_LIMIT = 10000
 
