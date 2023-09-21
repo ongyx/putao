@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 import io
 import pathlib
 
@@ -52,7 +53,7 @@ class Voicebank:
             self.samples = {s.alias: s for s in samples if s}
 
     def path_to(self, sample: Sample) -> pathlib.Path:
-        """Returns the absolute path to the sample's audio file.
+        """Return the absolute path to the sample's audio file.
 
         Args:
             sample: The sample to get the audio file path for.
@@ -72,8 +73,39 @@ class Voicebank:
 
         return self.dir / sample.file
 
+    def path_to_frq(self, sample: Sample) -> pathlib.Path:
+        """Return the absolute path to the sample's freqeuncy map.
+
+        Args:
+            sample: The sample to get the frequency map path for.
+
+        Returns:
+            The absolute path.
+        """
+
+        path = self.path_to(sample)
+        # UTAU seems to generate frequency maps with the filename '(sample)_wav.frq'.
+        name = path.stem + path.suffix.replace(".", "_") + ".frq"
+
+        return self.dir / name
+
+    def get(self, alias: str) -> Sample | None:
+        """Get a sample by its alias.
+
+        Args:
+            alias: The sample's alias.
+
+        Returns:
+            The sample if found, else None.
+        """
+
+        return self.samples.get(alias)
+
     def __getitem__(self, alias: str) -> Sample:
         return self.samples[alias]
+
+    def __iter__(self) -> Iterator[Sample]:
+        return iter(self.samples.values())
 
 
 def detect_encoding(
