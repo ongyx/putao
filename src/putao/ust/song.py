@@ -100,21 +100,3 @@ class Song:
 
         with io.StringIO(text) as buf:
             return cls(buf)
-
-    @classmethod
-    def from_path(cls, path: str | pathlib.Path, encoding: str = "shift_jis") -> Self:
-        """Parse a UST file at path into a song.
-
-        Args:
-            path: The UST file path.
-            encoding: The UST file encoding. Defaults to Shift-JIS.
-
-        Returns:
-            The parsed song.
-        """
-
-        if isinstance(path, str):
-            path = pathlib.Path(path)
-
-        with path.open(encoding=encoding) as f:
-            return cls(f)

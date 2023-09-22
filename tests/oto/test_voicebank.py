@@ -5,7 +5,7 @@ from putao.oto.sample import Sample
 from putao.oto.voicebank import Voicebank, CONFIG_FILE
 
 VOWELS = ["あ", "え", "い", "お", "う"]
-ENCODINGS = ["shift_jis", "utf_8"]
+ENCODINGS = ["shift_jis", "utf-8"]
 
 
 @pytest.fixture(scope="session", params=ENCODINGS)
@@ -20,10 +20,6 @@ def voicebank(
     with (dir / CONFIG_FILE).open("w", encoding=encoding) as f:
         for vowel in VOWELS:
             print(f"{vowel}.wav={vowel},1,2,3,4,5", file=f)
-
-            # Mojibake vowel on purpose.
-            if encoding != "utf_8":
-                vowel = vowel.encode(encoding).decode("cp437")
 
             # Create an empty sample file for each vowel.
             (dir / vowel).with_suffix(".wav").touch()

@@ -1,6 +1,11 @@
-from collections.abc import Iterator
 import io
 import pathlib
+import shutil
+import zipfile
+from collections.abc import Iterator
+from typing import IO
+
+import chardet
 
 from .sample import Sample
 
@@ -13,16 +18,13 @@ class Voicebank:
     A typical UTAU voicebank contains an `oto.ini` configuration file,
     any number of waveform voice samples (`.wav`), and frequnecy maps (`.frq`) for those samples.
 
-    Voicebanks may be encoded in UTF-8 or Shift-JIS,
-    but filenames may be mojibaked as code page 437 when extracted from a zip file on a non-Shift-JIS locale.
-
     Attributes:
         dir: The directory where the samples reside.
             An oto.ini file must be present inside the directory.
         config: The path to the oto.ini file.
         samples: A mapping of sample aliases to the sample itself.
-        encoding: The file encoding detected from the oto.ini.
-            If encoding is None, encoding detection is attempted.
+        encoding: The file encoding of the oto.ini.
+            If None, encoding detection is attempted.
     """
 
     dir: pathlib.Path
@@ -37,18 +39,26 @@ class Voicebank:
         self.dir = dir
         self.config = dir / CONFIG_FILE
 
-        with self.config.open("rb") as f:
-            encoding = encoding or detect_encoding(f.readline())
+        if encoding is None:
+            # Attempt to detect the encoding.
+            with self.config.open("rb") as f:
+                encoding = detect_encoding(f)
+
             if encoding is None:
-                raise ValueError(f"encoding detection failed for {self.config}")
+                raise ValueError(f"failed to detect encoding for {self.config}")
 
-            self.encoding = encoding
+            if encoding == "windows-1252":
+                # Shift-JIS may be detected incorrectly as code page 1252 if the oto.ini is too small.
+                encoding = "shift_jis"
 
+        self.encoding = encoding
+
+        with self.config.open(encoding=encoding) as f:
             f.seek(0)
 
             # Parse each ini config into a sample and map them by alias.
             # NOTE: The RE end-of-line anchor can't match CRLF newlines, hence the need for rstrip().
-            samples = (Sample.parse(line.decode(encoding).rstrip()) for line in f)
+            samples = (Sample.parse(line) for line in f)
 
             self.samples = {s.alias: s for s in samples if s}
 
@@ -61,15 +71,6 @@ class Voicebank:
         Returns:
             The absolute path.
         """
-
-        if self.encoding != "utf_8":
-            # A typical UTAU voicebank is encoded in Shift-JIS,
-            # so file names end up mojibaked when zipped and extracted.
-            # This is due to filenames being encoded as Shift-JIS and decoded as code page 437
-            # which is the historical encoding used for zip files.
-            #
-            # Therefore the file name has to be purposely mojibaked to get the actual path.
-            return self.dir / sample.file.encode(self.encoding).decode("cp437")
 
         return self.dir / sample.file
 
@@ -108,25 +109,64 @@ class Voicebank:
         return iter(self.samples.values())
 
 
-def detect_encoding(
-    data: bytes, encodings: list[str] = ["shift_jis", "utf_8"]
-) -> str | None:
-    """Attempt to detect the encoding of data.
+def extract_zip(file: str | pathlib.Path | IO[bytes], dir: str | pathlib.Path):
+    """Extract a ZIP file which may not be in UTF-8.
+
+    Voicebanks in the form of zipfiles are usually encoded in the OEM locale,
+    but since ZIP files only support code page 437 and UTF-8, names end up mojibaked as code page 437.
+    Therefore, filenames must be encoded as code page 437 and decoded as the OEM locale to obtain the UTF-8 representation.
 
     Args:
-        text: The text to detect the encoding of.
-        encodings: A list of possible encodings.
+        file: The ZIP file to extract.
+        dir: Where to extract the ZIP file's contents to.
 
-    Returns:
-        The encoding if detection was successful, otherwise None.
+    Raises:
+        ValueError: The ZIP encoding could not be detected.
     """
 
-    for encoding in encodings:
-        try:
-            data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-        else:
-            return encoding
+    if isinstance(dir, str):
+        dir = pathlib.Path(dir)
 
-    return None
+    with zipfile.ZipFile(file) as zf:
+        # Feed the member filenames as raw bytes to chardet.
+        encoding = detect_encoding(n.encode("cp437") for n in zf.namelist())
+        if encoding is None:
+            raise ValueError("failed to detect zip encoding")
+
+        for zi in zf.infolist():
+            # Demojibake the filename.
+            name = zi.filename.encode("cp437").decode(encoding)
+            path = dir / name
+
+            # Create the parent directory of the file to extract.
+            path.parent.mkdir(exist_ok=True)
+
+            # Copy the file to the filesystem with the demojibaked filename.
+            with (
+                zf.open(zi) as src,
+                path.open("wb") as dst,
+            ):
+                shutil.copyfileobj(src, dst)
+
+
+def detect_encoding(file: Iterator[bytes]) -> str | None:
+    """Determine the encoding of a binary file.
+
+    Args:
+        file: The file to detect the encoding of.
+
+    Returns:
+        The encoding if detected successfully, otherwise None.
+    """
+
+    detector = chardet.UniversalDetector()
+
+    for line in file:
+        if not detector.done:
+            detector.feed(line)
+        else:
+            break
+
+    encoding = detector.close()["encoding"]
+
+    return encoding.lower() if encoding else None
