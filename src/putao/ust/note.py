@@ -1,6 +1,10 @@
 import dataclasses
 from typing import Any, Self
 
+import numpy as np
+
+from ..oto import Voicebank, Pitch, Frq
+
 
 @dataclasses.dataclass(slots=True)
 class Note:
@@ -23,6 +27,12 @@ class Note:
     voiceoverlap: float | None = None
 
     def serialize(self) -> dict[str, str]:
+        """Serialize the note to a dict.
+
+        Returns:
+            A dict suitable for serialization as part of a UST.
+        """
+
         note = {
             "length": str(self.length),
             "lyric": self.lyric,
@@ -42,6 +52,15 @@ class Note:
 
     @classmethod
     def parse(cls, note: dict[str, str]) -> Self:
+        """Parse a note from a dict.
+
+        Args:
+            note: The note configuration in the UST.
+
+        Returns:
+            The parsed note.
+        """
+
         kwargs: dict[str, Any] = {
             "length": int(note["length"]),
             "lyric": note["lyric"],
