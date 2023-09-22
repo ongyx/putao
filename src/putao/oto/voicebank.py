@@ -47,10 +47,6 @@ class Voicebank:
             if encoding is None:
                 raise ValueError(f"failed to detect encoding for {self.config}")
 
-            if encoding == "windows-1252":
-                # Shift-JIS may be detected incorrectly as code page 1252 if the oto.ini is too small.
-                encoding = "shift_jis"
-
         self.encoding = encoding
 
         with self.config.open(encoding=encoding) as f:
@@ -167,6 +163,15 @@ def detect_encoding(file: Iterator[bytes]) -> str | None:
         else:
             break
 
-    encoding = detector.close()["encoding"]
+    result = detector.close()
 
-    return encoding.lower() if encoding else None
+    if encoding := result["encoding"]:
+        encoding = encoding.lower()
+
+        if encoding == "windows-1252":
+            # Shift-JIS may be detected incorrectly as code page 1252 if the oto.ini is too small.
+            encoding = "shift_jis"
+
+        return encoding
+
+    return None

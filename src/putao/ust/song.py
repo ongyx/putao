@@ -5,6 +5,8 @@ from typing import Iterator, Self, TextIO
 
 from .. import ini
 
+from .note import Note
+
 NOTE_LIMIT = 10000
 
 RE_VERSION = re.compile(r"^UST Version(.+?)$", flags=re.IGNORECASE)
@@ -50,7 +52,7 @@ class Song:
 
     version: str
     settings: dict[str, str]
-    notes: list[dict[str, str]]
+    notes: list[Note]
 
     def __init__(self, file: Iterator[str]):
         config = ini.load(file, parse_func=_parse)
@@ -60,7 +62,7 @@ class Song:
         self.settings = dict(config["#SETTING"])
 
         # Assuming notes are in contiguous order.
-        self.notes = [p for s, p in config.items() if RE_NOTE.match(s)]
+        self.notes = [Note.parse(p) for s, p in config.items() if RE_NOTE.match(s)]
 
     def save(self, file: TextIO):
         """Save the song in UST format.
@@ -80,12 +82,23 @@ class Song:
             # UST settings.
             {"#SETTING": self.settings}
             # UST notes (#0000 to #9999 max)
-            | {f"#{i:0>4}": note for i, note in enumerate(self.notes)}
+            | {f"#{i:0>4}": note.serialize() for i, note in enumerate(self.notes)}
             # Track end marker.
             | {"#TRACKEND": {}}
         )
 
         ini.dump(config, file)
+
+    def to_str(self) -> str:
+        """Serialize the song to UST format.
+
+        Returns:
+            The serialized song as a string.
+        """
+
+        with io.StringIO() as buf:
+            self.save(buf)
+            return buf.getvalue()
 
     @classmethod
     def from_str(cls, text: str) -> Self:

@@ -3,4 +3,4 @@
 from .frq import Frq
 from .pitch import Pitch
 from .sample import Sample
-from .voicebank import Voicebank
+from .voicebank import Voicebank, extract_zip
