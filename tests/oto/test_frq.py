@@ -2,7 +2,7 @@ import io
 
 import pytest
 
-from putao.oto import frq
+from putao.oto.frq import Frq, _MAGIC
 
 FORTY_TWO = bytes(
     [
@@ -18,10 +18,10 @@ FORTY_TWO = bytes(
 )
 
 
-TEST_FRQ = bytes(
+TEST_Frq = bytes(
     [
         # Magic number.
-        *frq._MAGIC,
+        *_MAGIC,
         # Number of samples per frame (256 by default).
         0x0,
         0x1,
@@ -44,8 +44,8 @@ TEST_FRQ = bytes(
 )
 
 
-def test_frq_load():
-    fmap = frq.loads(TEST_FRQ)
+def test_Frq_load():
+    fmap = Frq.loads(TEST_Frq)
 
     assert fmap.samples == 256
     assert fmap.average == 42
@@ -55,9 +55,9 @@ def test_frq_load():
     assert frame["amplitude"] == 42
 
 
-def test_frq_dump():
-    fmap = frq.loads(TEST_FRQ)
+def test_Frq_dump():
+    fmap = Frq.loads(TEST_Frq)
 
-    output = frq.dumps(fmap)
+    output = Frq.dumps(fmap)
 
-    assert output == TEST_FRQ
+    assert output == TEST_Frq
