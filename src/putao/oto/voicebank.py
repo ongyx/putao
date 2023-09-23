@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from typing import IO
 
 import chardet
+from rich.progress import Progress
 
 from .sample import Sample
 
@@ -104,8 +105,16 @@ class Voicebank:
     def __iter__(self) -> Iterator[Sample]:
         return iter(self.samples.values())
 
+    def __len__(self) -> int:
+        return len(self.samples)
 
-def extract_zip(file: str | pathlib.Path | IO[bytes], dir: str | pathlib.Path):
+
+def extract_zip(
+    file: str | pathlib.Path | IO[bytes],
+    dir: str | pathlib.Path,
+    *,
+    progress: Progress | None = None,
+):
     """Extract a ZIP file which may not be in UTF-8.
 
     Voicebanks in the form of zipfiles are usually encoded in the OEM locale,
@@ -115,6 +124,7 @@ def extract_zip(file: str | pathlib.Path | IO[bytes], dir: str | pathlib.Path):
     Args:
         file: The ZIP file to extract.
         dir: Where to extract the ZIP file's contents to.
+        progress: If not None, extraction progress is reported.
 
     Raises:
         ValueError: The ZIP encoding could not be detected.
@@ -129,7 +139,12 @@ def extract_zip(file: str | pathlib.Path | IO[bytes], dir: str | pathlib.Path):
         if encoding is None:
             raise ValueError("failed to detect zip encoding")
 
-        for zi in zf.infolist():
+        # Wrap infolist to track progress.
+        zil = zf.infolist()
+        if progress is not None:
+            zil = progress.track(zil, description=f"Extracting {file}")
+
+        for zi in zil:
             # Demojibake the filename.
             name = zi.filename.encode("cp437").decode(encoding)
             path = dir / name
