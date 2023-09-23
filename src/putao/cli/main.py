@@ -14,7 +14,7 @@ LOG_LEVELS = [
     logging.DEBUG,
 ]
 
-app = typer.Typer()
+app = typer.Typer(no_args_is_help=True)
 
 
 @app.callback()

@@ -12,7 +12,7 @@ from .. import oto
 
 from .console import console
 
-app = typer.Typer()
+app = typer.Typer(no_args_is_help=True, help="View and manage voicebanks")
 
 
 @app.command()
@@ -77,7 +77,7 @@ def info(
                 with vb.path_to_frq(sample).open("rb") as f:
                     fmap = oto.Frq.load(f)
             except FileNotFoundError:
-                values.append("-")
+                values.extend(["-", "-"])
             else:
                 f0 = fmap.average
                 values.extend([f"{f0:.2f}Hz", str(oto.Pitch(f0).midi)])
