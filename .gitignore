@@ -167,3 +167,6 @@ examples/*.project.gz
 # Datasets for testing purposes.
 usts/
 voicebanks/
+
+# Old code.
+oldsrc/

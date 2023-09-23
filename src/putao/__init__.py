@@ -1,5 +1,3 @@
-# coding: utf8
-# flake8: noqa
-"""葡萄 (putao, grape): Poor man's UTAU."""
+"""putao is a concatenative synthsizer inspired by UTAU."""
 
-from . import core, model, utau
+__version__ = "0.5.0"

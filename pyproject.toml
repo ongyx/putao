@@ -24,7 +24,6 @@ dependencies = [
     # instead of installed via a binary wheel.
     "numpy>=1.24",
     "pydub @ git+https://github.com/jiaaro/pydub@master",
-    "pyparsing~=3.1.1",
     "pyworld~=0.3.4",
     "soundfile~=0.12.1",
     "tqdm~=4.66.1",
@@ -44,7 +43,7 @@ putao = "putao.cli:cli"
 allow-direct-references = true
 
 [tool.hatch.version]
-path = "src/putao/__about__.py"
+path = "src/putao/__init__.py"
 
 [tool.hatch.envs.test]
 dependencies = [
