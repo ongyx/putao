@@ -1,3 +1,9 @@
+"""Classes for INI parsing/serialization.
+
+This module offers a standard load(s)/dump(s) interface for reading and writing INI configuration.
+Unlike configparser, a custom parser can be used for more flexibility (such as with the oto.ini and *.ust file formats).
+"""
+
 import dataclasses
 import enum
 import io

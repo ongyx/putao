@@ -6,7 +6,7 @@ from .. import ini
 
 @dataclasses.dataclass(slots=True)
 class Sample:
-    """A voice sample in a voicebank. All int values are in miliseconds.
+    """A voice sample in a voicebank. All non-string values are in miliseconds.
 
     Attributes:
         file: The path to the sample's audio file relative to the voicebank's directory.
@@ -30,11 +30,11 @@ class Sample:
 
     file: str
     alias: str
-    offset: int
-    consonant: int
-    cutoff: int
-    preutterance: int
-    overlap: int
+    offset: float
+    consonant: float
+    cutoff: float
+    preutterance: float
+    overlap: float
 
     @classmethod
     def parse(cls, entry: str) -> Self:
@@ -60,9 +60,9 @@ class Sample:
         return cls(
             file=file,
             alias=alias,
-            # These parameters must be converted to int.
+            # These parameters must be converted to float.
             **{
-                k: int(v)
+                k: float(v)
                 for k, v in zip(
                     ["offset", "consonant", "cutoff", "preutterance", "overlap"], params
                 )
