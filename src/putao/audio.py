@@ -6,7 +6,7 @@ except that audio segments are backed by NumPy arrays for ease of use with sound
 
 import dataclasses
 import pathlib
-from typing import IO, Self
+from typing import IO, Iterator, Self
 
 import numpy as np
 import soundfile
@@ -24,18 +24,6 @@ class Segment:
 
     array: np.ndarray
     srate: int
-
-    @classmethod
-    def from_file(cls, file: str | pathlib.Path | IO[bytes]) -> Self:
-        """Read an audio file into a segment.
-
-        Args:
-            file: The path-like or file-like object to read samples from.
-
-        Returns:
-            The audio segment.
-        """
-        return cls(*soundfile.read(file, dtype="float64"))
 
     def milliseconds(self, samples: int) -> float:
         """Convert a count of audio samples to milliseconds.
@@ -61,19 +49,34 @@ class Segment:
 
         return int(ms / 1000 * self.srate)
 
+    @classmethod
+    def from_file(cls, file: str | pathlib.Path | IO[bytes]) -> Self:
+        """Read an audio file into a segment.
+
+        Args:
+            file: The path-like or file-like object to read samples from.
+
+        Returns:
+            The audio segment.
+        """
+        return cls(*soundfile.read(file, dtype="float64"))
+
     def __len__(self) -> int:
         return round(self.milliseconds(len(self.array)))
 
-    def __getitem__(self, ms: float | slice) -> np.ndarray | list[np.ndarray]:
+    def __getitem__(self, ms: float | slice) -> Self | Iterator[Self]:
         if isinstance(ms, slice):
             if ms.step is not None:
-                # Split the audio samples into chunks.
-                return np.hsplit(self.array, self.samples(ms.step))
+                # Split the audio sample into chunks.
+                return (
+                    Segment(a, self.srate)
+                    for a in np.hsplit(self.array, self.samples(ms.step))
+                )
 
             start = self.samples(ms.start or 0)
             stop = self.samples(ms.stop or len(self.array))
 
-            return self.array[start:stop]
+            return Segment(self.array[start:stop], self.srate)
 
         # Return 1 millisecond of audio.
-        return self.array[ms : ms + 1]
+        return self[ms : ms + 1]
