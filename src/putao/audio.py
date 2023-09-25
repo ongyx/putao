@@ -15,6 +15,7 @@ import soundfile
 @dataclasses.dataclass
 class Segment:
     """An array of audio samples.
+    The underlying array is guaranteed to be immutable.
 
     Attributes:
         array: A vector or matrix of audio samples in float64.
@@ -25,11 +26,28 @@ class Segment:
     array: np.ndarray
     srate: int
 
+    def __post_init__(self):
+        self.array.setflags(write=False)
+
     @property
     def channels(self) -> int:
+        """Get the number of channels in the audio segment.
+
+        Typically, audio segments only have 1 (mono) or 2 (stereo) channels.
+        """
+
         return len(self.array.shape)
 
     def set_channels(self, channels: Literal[1, 2]) -> Self:
+        """Spawn an audio segment with the specified number of channels.
+
+        Args:
+            channels: The number of channels to spawn the segment with.
+
+        Returns:
+            The spawned audio segment, or the existing audio segment if it already has the same number of channels.
+        """
+
         match self.channels, channels:
             case 2, 1:
                 # Stereo to mono.
