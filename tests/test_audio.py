@@ -3,9 +3,7 @@ import pytest
 
 from putao import audio
 
-SAMPLE_RATE = 44100
-
-SILENCE = audio.Segment(np.zeros(10 * SAMPLE_RATE), SAMPLE_RATE)
+SILENCE = audio.Segment.silent(10000)
 
 
 def test_segment_len():
