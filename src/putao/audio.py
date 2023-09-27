@@ -4,9 +4,10 @@ The API aims to be similar to pydub.AudioSegement (https://github.com/jiaaro/pyd
 except that audio segments are backed by NumPy arrays for ease of use with soundfile/librosa.
 """
 
+import contextlib
 import dataclasses
 import pathlib
-from typing import IO, Iterator, Literal, Self
+from typing import IO, Any, BinaryIO, Iterator, Literal, Self
 
 import numpy as np
 import soundfile
@@ -27,7 +28,10 @@ class Segment:
     srate: int
 
     def __post_init__(self):
-        self.array.setflags(write=False)
+        # Only set the array to read-only if its not a view.
+        # Otherwise, let the view inherit the writeable flag.
+        if self.array.flags["OWNDATA"]:
+            self.array.flags["WRITEABLE"] = False
 
     @property
     def channels(self) -> int:
@@ -59,38 +63,74 @@ class Segment:
                 # Return as-is.
                 return self
 
-    def milliseconds(self, samples: int) -> float:
-        """Convert a count of audio samples to milliseconds.
+    def fade(
+        self,
+        to_gain: float = 0,
+        from_gain: float = 0,
+        start: float | None = None,
+        end: float | None = None,
+    ):
+        """Apply a fade effect to the audio segment.
 
         Args:
-            samples: The audio sample count.
+            to_gain: Final gain factor.
+            from_gain: Initial gain factor.
+            start: Where the fade should start.
+            end: Where the fade should end.
 
         Returns:
-            The audio sample count as a duration in milliseconds.
+            A copy of the audio segment with the fade applied.
         """
 
-        return samples / self.srate * 1000
+        if to_gain == 0 and from_gain == 0:
+            return self
 
-    def samples(self, ms: float) -> int:
-        """Convert a duration in milliseconds to a count of audio samples.
+        start = start or 0
+        end = end or len(self)
 
-        Args:
-            ms: The duration in milliseconds.
+        if not start < end:
+            raise ValueError("start must be earlier than end")
 
-        Returns:
-            The duration as an audio sample count.
+        with self.mutable() as segment:
+            fade_arr = segment[start:end].array
+            # Logarithmic fade curve.
+            fade_arr *= np.logspace(from_gain, to_gain, num=len(fade_arr)) / 10
+
+            return segment
+
+    @contextlib.contextmanager
+    def mutable(self) -> Iterator[Self]:
+        """Create a temporarily mutable copy of the audio segment.
+        After the context closes, the copy becomes immutable.
         """
 
-        return int(ms / 1000 * self.srate)
+        segment = self._spawn()
+        segment.array.flags["WRITEABLE"] = True
+
+        try:
+            yield segment
+        finally:
+            segment.array.flags["WRITEABLE"] = False
 
     def _spawn(self, array: np.ndarray | None = None, srate: int | None = None) -> Self:
         if array is None:
-            array = self.array
+            array = self.array.copy()
 
         if srate is None:
             srate = self.srate
 
         return Segment(array, srate)
+
+    def export(self, file: str | pathlib.Path | BinaryIO, format: str = "WAV"):
+        """Export an audio segment to a file.
+
+        Args:
+            file: The path-like or file-like object to export to.
+            format: The format to export with.
+                See soundfile.available_formats().
+        """
+
+        soundfile.write(file, self.array, self.srate, format=format)
 
     @classmethod
     def from_file(cls, file: str | pathlib.Path | IO[bytes]) -> Self:
@@ -120,10 +160,34 @@ class Segment:
 
         return cls(np.zeros(int(duration / 1000 * sample_rate)), sample_rate)
 
+    def milliseconds(self, samples: int) -> float:
+        """Convert a count of audio samples to milliseconds.
+
+        Args:
+            samples: The audio sample count.
+
+        Returns:
+            The audio sample count as a duration in milliseconds.
+        """
+
+        return samples / self.srate * 1000
+
     def __len__(self) -> int:
         return round(self.milliseconds(len(self.array)))
 
-    def __getitem__(self, ms: float | slice) -> Self | Iterator[Self]:
+    def samples(self, ms: float) -> int:
+        """Convert a duration in milliseconds to a count of audio samples.
+
+        Args:
+            ms: The duration in milliseconds.
+
+        Returns:
+            The duration as an audio sample count.
+        """
+
+        return int(ms / 1000 * self.srate)
+
+    def __getitem__(self, ms: float | slice) -> Self | Any:
         if isinstance(ms, slice):
             if ms.step is not None:
                 # Split the audio sample into chunks.
