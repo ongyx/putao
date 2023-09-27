@@ -17,6 +17,14 @@ def test_segment_slice():
     assert len(part) == 5000
 
 
+def test_segment_channels():
+    stereo = SILENCE.set_channels(2)
+    assert stereo.channels == 2
+
+    mono = stereo.set_channels(1)
+    assert mono.channels == 1
+
+
 def test_segment_immutable():
     with pytest.raises(ValueError):
         SILENCE.array[0] = 0
