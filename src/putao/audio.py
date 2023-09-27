@@ -11,27 +11,41 @@ from typing import IO, Any, BinaryIO, Iterator, Literal, Self
 
 import numpy as np
 import soundfile
+from numpy.typing import NDArray
+
+
+def db_to_amp(db: float) -> float:
+    """Calculate the amplitude factor from a decibel value.
+
+    Args:
+        db: The decibel value.
+
+    Returns:
+        The amplitude factor.
+    """
+
+    return 10 ** (db / 20)
 
 
 @dataclasses.dataclass
 class Segment:
     """An array of audio samples.
-    The underlying array is guaranteed to be immutable.
 
     Attributes:
         array: A vector or matrix of audio samples in float64.
             They represent mono or stereo audio respectively.
         srate: The number of audio samples per second.
+        immutable: Whether or not the underlying array is read-only.
+            If True (the default), the array is locked when the audio segment is initialised.
     """
 
-    array: np.ndarray
+    array: NDArray[np.float64]
     srate: int
+    immutable: bool = True
 
     def __post_init__(self):
-        # Only set the array to read-only if its not a view.
-        # Otherwise, let the view inherit the writeable flag.
-        if self.array.flags["OWNDATA"]:
-            self.array.flags["WRITEABLE"] = False
+        if self.immutable:
+            self._lock()
 
     @property
     def channels(self) -> int:
@@ -73,17 +87,28 @@ class Segment:
         """Apply a fade effect to the audio segment.
 
         Args:
-            to_gain: Final gain factor.
-            from_gain: Initial gain factor.
+            to_gain: Final gain in dbFS.
+            from_gain: Initial gain in dbFS.
             start: Where the fade should start.
             end: Where the fade should end.
 
         Returns:
             A copy of the audio segment with the fade applied.
+
+        Raises:
+            ValueError: to_gain or from_gain are above 0.
         """
 
         if to_gain == 0 and from_gain == 0:
             return self
+
+        if to_gain > 0 or from_gain > 0:
+            raise ValueError(
+                f"dbFS cannot be above 0 (to_gain: {to_gain}, from_gain: {from_gain})"
+            )
+
+        to_amp = db_to_amp(to_gain)
+        from_amp = db_to_amp(from_gain)
 
         start = start or 0
         end = end or len(self)
@@ -94,7 +119,7 @@ class Segment:
         with self.mutable() as segment:
             fade_arr = segment[start:end].array
             # Logarithmic fade curve.
-            fade_arr *= np.logspace(from_gain, to_gain, num=len(fade_arr)) / 10
+            fade_arr *= np.logspace(from_amp, to_amp, num=len(fade_arr)) / 10
 
             return segment
 
@@ -104,22 +129,41 @@ class Segment:
         After the context closes, the copy becomes immutable.
         """
 
-        segment = self._spawn()
-        segment.array.flags["WRITEABLE"] = True
+        segment = self._spawn(immutable=False)
+
+        # Sanity check - the spawned segment must be a copy to be made writeable.
+        segment._unlock()
 
         try:
             yield segment
         finally:
-            segment.array.flags["WRITEABLE"] = False
+            segment._lock()
 
-    def _spawn(self, array: np.ndarray | None = None, srate: int | None = None) -> Self:
+    def _unlock(self):
+        self.array.flags["WRITEABLE"] = True
+        self.immutable = False
+
+    def _lock(self):
+        self.array.flags["WRITEABLE"] = False
+        self.immutable = True
+
+    def _spawn(
+        self,
+        array: NDArray[np.float64] | None = None,
+        srate: int | None = None,
+        immutable: bool | None = None,
+    ) -> Self:
         if array is None:
+            # Create a copy of the underlying array.
             array = self.array.copy()
 
         if srate is None:
             srate = self.srate
 
-        return Segment(array, srate)
+        if immutable is None:
+            immutable = self.immutable
+
+        return Segment(array, srate, immutable=immutable)
 
     def export(self, file: str | pathlib.Path | BinaryIO, format: str = "WAV"):
         """Export an audio segment to a file.
