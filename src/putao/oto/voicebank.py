@@ -26,6 +26,13 @@ class Voicebank:
         samples: A mapping of sample aliases to the sample itself.
         encoding: The file encoding of the oto.ini.
             If None, encoding detection is attempted.
+
+    Args:
+        check: Whether or not to perform a sanity check on the voicebank.
+            Defaults to True.
+
+    Raises:
+        ValueError: The encoding could not be detected or the sanity check failed.
     """
 
     dir: pathlib.Path
@@ -33,7 +40,9 @@ class Voicebank:
     samples: dict[str, Sample]
     encoding: str
 
-    def __init__(self, dir: str | pathlib.Path, encoding: str | None = None):
+    def __init__(
+        self, dir: str | pathlib.Path, encoding: str | None = None, check: bool = True
+    ):
         if isinstance(dir, str):
             dir = pathlib.Path(dir)
 
@@ -54,10 +63,16 @@ class Voicebank:
             f.seek(0)
 
             # Parse each ini config into a sample and map them by alias.
-            # NOTE: The RE end-of-line anchor can't match CRLF newlines, hence the need for rstrip().
             samples = (Sample.parse(line) for line in f)
 
             self.samples = {s.alias: s for s in samples if s}
+
+        if check:
+            for sample in self:
+                if not self.path_to(sample).exists():
+                    raise ValueError(
+                        f"sample in oto.ini not found: '{sample.file}' aliased by '{sample.alias}'"
+                    )
 
     def path_to(self, sample: Sample) -> pathlib.Path:
         """Return the absolute path to the sample's audio file.

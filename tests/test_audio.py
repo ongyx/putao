@@ -35,3 +35,9 @@ def test_segment_mutable():
         silence[:5000].array[:] = 0
 
     assert silence is not SILENCE
+
+
+def test_segment_append():
+    double_silence = SILENCE + SILENCE
+
+    assert len(double_silence) == len(SILENCE) * 2

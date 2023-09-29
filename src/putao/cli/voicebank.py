@@ -11,6 +11,7 @@ from rich.table import Table
 from .. import oto
 
 from .console import console
+from .utils import bytes_to_unit
 
 app = typer.Typer(no_args_is_help=True, help="View and manage voicebanks")
 
@@ -39,6 +40,7 @@ def info(
         pathlib.Path, typer.Argument(exists=True, file_okay=False, resolve_path=True)
     ] = pathlib.Path(),
     alias: Annotated[Optional[str], typer.Argument()] = None,
+    samp: Annotated[bool, typer.Option(help="Display samples")] = True,
     frq: Annotated[bool, typer.Option(help="Display frequency maps")] = False,
 ):
     """Show information on a voicebank directory.
@@ -46,42 +48,45 @@ def info(
     """
 
     vb = oto.Voicebank(dir)
+    size = sum(vb.path_to(s).stat().st_size for s in vb)
 
     console.print(
         textwrap.dedent(
             f"""
-            {dir}          
+            path:     {dir}          
             encoding: {vb.encoding}
-            samples: {len(vb)}
-            files: {len(set(s.file for s in vb))}
+            samples:  {len(vb)}
+            files:    {len(set(s.file for s in vb))}
+            size:     {bytes_to_unit(size)}
             """
         )
     )
 
-    table = Table()
-    for field in dataclasses.fields(oto.Sample):
-        table.add_column(field.name.capitalize())
-
-    if frq:
-        table.add_column("F0 average")
-        table.add_column("Note")
-
-    samples = vb if alias is None else [vb[alias]]
-
-    for sample in samples:
-        values = [str(v) for v in dataclasses.astuple(sample)]
+    if samp:
+        table = Table()
+        for field in dataclasses.fields(oto.Sample):
+            table.add_column(field.name.capitalize())
 
         if frq:
-            # Attempt to read F0 value.
-            try:
-                with vb.path_to_frq(sample).open("rb") as f:
-                    fmap = oto.Frq.load(f)
-            except FileNotFoundError:
-                values.extend(["-", "-"])
-            else:
-                f0 = fmap.average
-                values.extend([f"{f0:.2f}Hz", str(oto.Pitch(f0).midi)])
+            table.add_column("F0 average")
+            table.add_column("Note")
 
-        table.add_row(*values)
+        samples = vb if alias is None else [vb[alias]]
 
-    console.print(table)
+        for sample in samples:
+            values = [str(v) for v in dataclasses.astuple(sample)]
+
+            if frq:
+                # Attempt to read F0 value.
+                try:
+                    with vb.path_to_frq(sample).open("rb") as f:
+                        fmap = oto.Frq.load(f)
+                except FileNotFoundError:
+                    values.extend(["-", "-"])
+                else:
+                    f0 = fmap.average
+                    values.extend([f"{f0:.2f}Hz", str(oto.Pitch(f0).midi)])
+
+            table.add_row(*values)
+
+        console.print(table)
