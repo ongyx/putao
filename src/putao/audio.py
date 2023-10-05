@@ -35,21 +35,35 @@ class Segment:
         array: A vector or matrix of audio samples in float64.
             They represent mono or stereo audio respectively.
         srate: The number of audio samples per second.
-        immutable: Whether or not the underlying array is read-only.
-            If True (the default), the array is locked when the audio segment is initialised.
     """
 
     array: NDArray[np.float64]
     srate: int
-    immutable: bool = True
 
     def __post_init__(self):
-        if self.immutable:
-            self._lock()
+        # Check if the array is a view or copy.
+        # Copies are always made immutable, whereas views inherit their mutability from their base copy or view.
+        if self.array.base is None:
+            # Make the array a view of itself so the original is left untouched.
+            self.array = self.array[:]
+            self.mut = False
+
+    @property
+    def mut(self) -> bool:
+        """Whether or not the audio segment's array is mutable.
+
+        Regardless of this, all segment operations return a copy of the array.
+        """
+
+        return self.array.flags.writeable
+
+    @mut.setter
+    def mut(self, value: bool):
+        self.array.flags.writeable = value
 
     @property
     def channels(self) -> int:
-        """Get the number of channels in the audio segment.
+        """The number of channels in the audio segment.
 
         Typically, audio segments only have 1 (mono) or 2 (stereo) channels.
         """
@@ -73,7 +87,7 @@ class Segment:
 
         if not crossfade:
             # One segment after the other.
-            return self._spawn(np.concatenate([self.array, segment.array], axis=0))
+            return self.spawn(np.concatenate([self.array, segment.array], axis=0))
 
         self_len = len(self)
         seg_len = len(segment)
@@ -93,7 +107,7 @@ class Segment:
         )
 
         # Concatenate the other regions with the crossfade.
-        return self._spawn(
+        return self.spawn(
             np.concatenate([self[:-crossfade].array, faded, segment[crossfade:].array])
         )
 
@@ -107,7 +121,7 @@ class Segment:
             A copy of the audio segment with the gain applied.
         """
 
-        return self._spawn(self.array * db_to_amp(db))
+        return self.spawn(self.array * db_to_amp(db))
 
     def set_channels(self, channels: Literal[1, 2]) -> Self:
         """Spawn an audio segment with the specified number of channels.
@@ -122,10 +136,10 @@ class Segment:
         match self.channels, channels:
             case 2, 1:
                 # Stereo to mono.
-                return self._spawn(self.array.mean(axis=0))
+                return self.spawn(self.array.mean(axis=0))
             case 1, 2:
                 # Mono to stereo.
-                return self._spawn(np.tile(self.array, (2, 1)))
+                return self.spawn(np.tile(self.array, (2, 1)))
             case _:
                 # Return as-is.
                 return self
@@ -171,28 +185,12 @@ class Segment:
                 f"start must be earlier than end (start={start}, end={end})"
             )
 
-        with self.mutable() as segment:
+        with self.spawn().mutable() as segment:
             fade_arr = segment[start:end].array
             # Logarithmic fade curve.
             fade_arr *= np.logspace(from_amp, to_amp, num=len(fade_arr)) / 10
 
             return segment
-
-    @contextlib.contextmanager
-    def mutable(self) -> Iterator[Self]:
-        """Create a temporarily mutable copy of the audio segment.
-        After the context closes, the copy becomes immutable.
-        """
-
-        segment = self._spawn(immutable=False)
-
-        # Sanity check - the spawned segment must be a copy to be made writeable.
-        segment._unlock()
-
-        try:
-            yield segment
-        finally:
-            segment._lock()
 
     def export(self, file: str | pathlib.Path | BinaryIO, format: str = "WAV"):
         """Export an audio segment to a file.
@@ -204,6 +202,43 @@ class Segment:
         """
 
         soundfile.write(file, self.array, self.srate, format=format)
+
+    @contextlib.contextmanager
+    def mutable(self) -> Iterator[Self]:
+        """Create a context where the audio segment is temporarily mutable."""
+
+        self.mut = True
+
+        try:
+            yield self
+        finally:
+            self.mut = False
+
+    def spawn(
+        self,
+        array: NDArray[np.float64] | None = None,
+        srate: int | None = None,
+    ) -> Self:
+        """Create a copy of the audio segment and its attributes.
+
+        Args:
+            array: The sample array.
+                If None, a copy of the existing array is made.
+            srate: The sample rate of the array.
+                If None, the existing sample rate is used.
+
+        Returns:
+            The copied audio segment.
+        """
+
+        if array is None:
+            # Create a copy of the underlying array.
+            array = self.array.copy()
+
+        if srate is None:
+            srate = self.srate
+
+        return Segment(array, srate)
 
     def samples(self, ms: float) -> int:
         """Convert a duration in milliseconds to a count of audio samples.
@@ -257,50 +292,25 @@ class Segment:
 
         return cls(np.zeros(int(duration / 1000 * sample_rate)), sample_rate)
 
-    def _unlock(self):
-        self.array.flags["WRITEABLE"] = True
-        self.immutable = False
-
-    def _lock(self):
-        self.array.flags["WRITEABLE"] = False
-        self.immutable = True
-
-    def _spawn(
-        self,
-        array: NDArray[np.float64] | None = None,
-        srate: int | None = None,
-        immutable: bool | None = None,
-    ) -> Self:
-        if array is None:
-            # Create a copy of the underlying array.
-            array = self.array.copy()
-
-        if srate is None:
-            srate = self.srate
-
-        if immutable is None:
-            immutable = self.immutable
-
-        return Segment(array, srate, immutable=immutable)
-
     def __add__(self, segment_or_gain: Self | float) -> Self:
         if isinstance(segment_or_gain, Segment):
             return self.append(segment_or_gain, crossfade=0)
 
         return self.apply_gain(segment_or_gain)
 
-    def __getitem__(self, ms: float | slice) -> Self | Any:
+    def __getitem__(self, ms: float | slice) -> Any:
         if isinstance(ms, slice):
             if ms.step is not None:
                 # Split the audio sample into chunks.
-                return (
-                    self._spawn(a) for a in np.hsplit(self.array, self.samples(ms.step))
-                )
+                chunk = self.samples(ms.step)
+                chunks = range(chunk, self.array.shape[0], chunk)
+
+                return (self.spawn(a) for a in np.array_split(self.array, chunks))
 
             start = self.samples(ms.start or 0)
             stop = self.samples(ms.stop or len(self.array))
 
-            return self._spawn(self.array[start:stop])
+            return self.spawn(self.array[start:stop])
 
         # Return 1 millisecond of audio.
         return self[ms : ms + 1]

@@ -8,6 +8,7 @@ from typing import IO
 import chardet
 from rich.progress import Progress
 
+from .frq import Frq
 from .sample import Sample
 
 CONFIG_FILE = "oto.ini"

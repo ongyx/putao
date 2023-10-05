@@ -16,6 +16,9 @@ def test_segment_slice():
     assert isinstance(part, audio.Segment)
     assert len(part) == 5000
 
+    for segment in SILENCE[::2500]:
+        assert len(segment) == 2500
+
 
 def test_segment_channels():
     stereo = SILENCE.set_channels(2)
@@ -34,10 +37,14 @@ def test_segment_mutable():
     with SILENCE.mutable() as silence:
         silence[:5000].array[:] = 0
 
-    assert silence is not SILENCE
-
 
 def test_segment_append():
     double_silence = SILENCE + SILENCE
 
     assert len(double_silence) == len(SILENCE) * 2
+
+
+def test_segment_spawn():
+    spawn = SILENCE.spawn()
+
+    assert spawn is not SILENCE

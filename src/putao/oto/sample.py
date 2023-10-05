@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Any, Self
 
-from .. import ini
+from .. import audio, ini
 
 
 @dataclasses.dataclass(slots=True)
@@ -15,12 +15,13 @@ class Sample:
 
         offset: Region from the start of the sample to ignore.
             All other values are offsets from this unless specified otherwise
-            (i.e., consonant region = sample[offset:consonant]).
+            (i.e., consonant region = sample[offset:offset + consonant]).
 
         consonant: Region where the sample is not stretched by the voice engine.
             This region not only contains the consonant, but also the front part of the vowel where the waveform has not stabilized yet.
 
         cutoff: Region from the end of the sample to ignore.
+            If negative, the cutoff is interpreted relative to the offset instead.
 
         preutterance: Region where the sample should play before the actual note start.
             This is usually in the middle of the consonant region where the sample transitions from the consonant to the vowel.
@@ -35,6 +36,24 @@ class Sample:
     cutoff: float
     preutterance: float
     overlap: float
+
+    def slice(self, segment: audio.Segment) -> tuple[audio.Segment, audio.Segment]:
+        """Slice an audio segment into a consonant and vowel.
+
+        Args:
+            segment: The audio segment to slice.
+
+        Returns:
+            A tuple of the consonant and vowel regions.
+        """
+
+        cutoff = self.cutoff
+        if cutoff > 0:
+            cutoff += self.offset
+
+        syllable = segment[self.offset : cutoff]
+
+        return syllable[: self.consonant], syllable[self.consonant :]
 
     @classmethod
     def parse(cls, entry: str) -> Self:

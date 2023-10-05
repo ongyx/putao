@@ -76,14 +76,18 @@ class Frq:
     All values in a frequency map are little-endian.
 
     Atrributes:
-        samples: The number of WAV samples per F0 frame, usually 256 by default.
-        average: The average F0 in hertz.
         frames: The F0 frames computed over the entire voice sample, consisting of a frequency and amplitude.
+        average: The average F0 in hertz.
+        samples: The number of WAV samples per F0 frame, usually 256 by default.
     """
 
-    samples: int
-    average: float
     frames: np.ndarray
+    average: float = 0
+    samples: int = 256
+
+    def __post_init__(self):
+        if self.average == 0:
+            self.average = self.frame_average
 
     @property
     def frame_average(self) -> float:
@@ -152,7 +156,7 @@ class Frq:
 
         frames = np.frombuffer(buffer, dtype=_Frame, count=frames_len)
 
-        return cls(samples, average, frames)
+        return cls(frames, average, samples)
 
     @classmethod
     def loads(cls, data: bytes) -> Self:
