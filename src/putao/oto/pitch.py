@@ -100,11 +100,11 @@ class Pitch:
         return pitch
 
     @property
-    def midi(self) -> int:
+    def midi(self) -> float:
         """The pitch's frequency as a MIDI note number."""
 
-        return round(69 + (12 * log2(self.frequency / CONCERT_PITCH)))
+        return 69 + (12 * log2(self.frequency / CONCERT_PITCH))
 
     @midi.setter
-    def midi(self, note: int):
+    def midi(self, note: float):
         self.frequency = (2 ** ((note - 69) / 12)) * CONCERT_PITCH

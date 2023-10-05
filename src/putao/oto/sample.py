@@ -4,7 +4,7 @@ from typing import Any, Self
 from .. import audio, ini
 
 
-@dataclasses.dataclass(slots=True)
+@dataclasses.dataclass(frozen=True, slots=True)
 class Sample:
     """A voice sample in a voicebank. All non-string values are in miliseconds.
 

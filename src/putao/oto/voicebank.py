@@ -1,12 +1,16 @@
+import functools
 import io
 import pathlib
 import shutil
 import zipfile
+from collections import UserDict
 from collections.abc import Iterator
 from typing import IO
 
 import chardet
 from rich.progress import Progress
+
+from .. import audio
 
 from .frq import Frq
 from .sample import Sample
@@ -14,17 +18,16 @@ from .sample import Sample
 CONFIG_FILE = "oto.ini"
 
 
-class Voicebank:
+class Voicebank(UserDict[str, Sample]):
     """A collection of voice samples.
 
     A typical UTAU voicebank contains an `oto.ini` configuration file,
-    any number of waveform voice samples (`.wav`), and frequnecy maps (`.frq`) for those samples.
+    any number of waveform voice samples (`.wav`), and frequenecy maps (`.frq`) for those samples.
 
     Attributes:
         dir: The directory where the samples reside.
             An oto.ini file must be present inside the directory.
         config: The path to the oto.ini file.
-        samples: A mapping of sample aliases to the sample itself.
         encoding: The file encoding of the oto.ini.
             If None, encoding detection is attempted.
 
@@ -38,7 +41,6 @@ class Voicebank:
 
     dir: pathlib.Path
     config: pathlib.Path
-    samples: dict[str, Sample]
     encoding: str
 
     def __init__(
@@ -66,7 +68,7 @@ class Voicebank:
             # Parse each ini config into a sample and map them by alias.
             samples = (Sample.parse(line) for line in f)
 
-            self.samples = {s.alias: s for s in samples if s}
+            super().__init__({s.alias: s for s in samples})
 
         if check:
             for sample in self:
@@ -87,6 +89,19 @@ class Voicebank:
 
         return self.dir / sample.file
 
+    @functools.cache
+    def load(self, sample: Sample) -> audio.Segment:
+        """Load a sample as an audio segment.
+
+        Args:
+            sample: The sample to load the audio segment for.
+
+        Returns:
+            The audio segment.
+        """
+
+        return audio.Segment.from_file(self.path_to(sample))
+
     def path_to_frq(self, sample: Sample) -> pathlib.Path:
         """Return the absolute path to the sample's freqeuncy map.
 
@@ -103,26 +118,22 @@ class Voicebank:
 
         return self.dir / name
 
-    def get(self, alias: str) -> Sample | None:
-        """Get a sample by its alias.
+    @functools.cache
+    def load_frq(self, sample: Sample) -> Frq:
+        """Load a sample's frequency map.
 
         Args:
-            alias: The sample's alias.
+            sample: The sample to load the frequency map for.
 
         Returns:
-            The sample if found, else None.
+            The frequency map.
         """
 
-        return self.samples.get(alias)
-
-    def __getitem__(self, alias: str) -> Sample:
-        return self.samples[alias]
+        with self.path_to_frq(sample).open("rb") as f:
+            return Frq.load(f)
 
     def __iter__(self) -> Iterator[Sample]:
-        return iter(self.samples.values())
-
-    def __len__(self) -> int:
-        return len(self.samples)
+        return iter(self.data.values())
 
 
 def extract_zip(

@@ -30,7 +30,7 @@ def voicebank(
 def test_voicebank(voicebank: pathlib.Path):
     vb = Voicebank(voicebank)
 
-    assert vb.samples == {v: Sample(f"{v}.wav", v, 1, 2, 3, 4, 5) for v in VOWELS}
+    assert vb.data == {v: Sample(f"{v}.wav", v, 1, 2, 3, 4, 5) for v in VOWELS}
 
-    for sample in vb.samples.values():
+    for sample in vb.data.values():
         assert vb.path_to(sample).exists()
