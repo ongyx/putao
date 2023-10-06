@@ -7,7 +7,7 @@ from putao.ust import Song
 TEST_SONG = """[#VERSION]
 UST Version1.2
 [#SETTING]
-tempo=120
+tempo=120.00
 tracks=1
 projectname=「こんにちは、世界！」
 voicedir=./voicebanks/tougou
@@ -16,6 +16,7 @@ cachedir=konnichiwa_sekai.cache
 tool1=wavtool.exe
 tool2=resampler.exe
 mode2=true
+flags=
 [#0000]
 length=120
 lyric=あ

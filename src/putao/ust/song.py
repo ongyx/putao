@@ -6,6 +6,7 @@ from typing import Iterator, Self, TextIO
 from .. import ini
 
 from .note import Note
+from .settings import Settings
 
 NOTE_LIMIT = 10000
 
@@ -51,7 +52,7 @@ class Song:
     """
 
     version: str
-    settings: dict[str, str]
+    settings: Settings
     notes: list[Note]
 
     def __init__(self, file: Iterator[str]):
@@ -59,10 +60,10 @@ class Song:
 
         self.version = config["#VERSION"]["version"]
 
-        self.settings = dict(config["#SETTING"])
+        self.settings = Settings.from_dict(config["#SETTING"])
 
         # Assuming notes are in contiguous order.
-        self.notes = [Note.parse(p) for s, p in config.items() if RE_NOTE.match(s)]
+        self.notes = [Note.from_dict(p) for s, p in config.items() if RE_NOTE.match(s)]
 
     def save(self, file: TextIO):
         """Save the song in UST format.
@@ -80,9 +81,9 @@ class Song:
 
         config = (
             # UST settings.
-            {"#SETTING": self.settings}
+            {"#SETTING": self.settings.to_dict()}
             # UST notes (#0000 to #9999 max)
-            | {f"#{i:0>4}": note.serialize() for i, note in enumerate(self.notes)}
+            | {f"#{i:0>4}": note.to_dict() for i, note in enumerate(self.notes)}
             # Track end marker.
             | {"#TRACKEND": {}}
         )

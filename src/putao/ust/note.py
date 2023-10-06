@@ -1,12 +1,16 @@
-import dataclasses
-from typing import Any, Self
+from typing import Annotated, Any, Self
+
+import attrs
+import cattrs
 
 import numpy as np
 
 from ..oto import Voicebank, Pitch, Frq
 
+from ._conv import converter
 
-@dataclasses.dataclass(slots=True)
+
+@attrs.define
 class Note:
     """A pitched lyric in a song. All int values are in miliseconds unless specified otherwise.
 
@@ -26,32 +30,27 @@ class Note:
     preutterance: float | None = None
     voiceoverlap: float | None = None
 
-    def serialize(self) -> dict[str, str]:
+    def is_rest(self) -> bool:
+        """Check if the note is a rest."""
+
+        return self.lyric == "R"
+
+    def to_dict(self) -> dict[str, str]:
         """Serialize the note to a dict.
 
         Returns:
             A dict suitable for serialization as part of a UST.
         """
 
-        note = {
-            "length": str(self.length),
-            "lyric": self.lyric,
-            "notenum": str(self.notenum),
-        }
+        config = {k: str(v) for k, v in converter.unstructure(self).items()}
 
-        if self.preutterance is not None:
-            note["preutterance"] = str(self.preutterance)
-        else:
-            # Preutterance must be present anyway.
-            note["preutterance"] = ""
+        # Preutterance must be present anyway.
+        config.setdefault("preutterance", "")
 
-        if self.voiceoverlap is not None:
-            note["voiceoverlap"] = str(self.voiceoverlap)
-
-        return note
+        return config
 
     @classmethod
-    def parse(cls, note: dict[str, str]) -> Self:
+    def from_dict(cls, note: dict[str, str]) -> Self:
         """Parse a note from a dict.
 
         Args:
@@ -61,16 +60,9 @@ class Note:
             The parsed note.
         """
 
-        kwargs: dict[str, Any] = {
-            "length": int(note["length"]),
-            "lyric": note["lyric"],
-            "notenum": int(note["notenum"]),
-        }
+        # Remove preutterance if it is empty.
+        if note.get("preutterance") == "":
+            note = note.copy()
+            del note["preutterance"]
 
-        if preutterance := note.get("preutterance"):
-            kwargs["preutterance"] = float(preutterance)
-
-        if voiceoverlap := note.get("voiceoverlap"):
-            kwargs["voiceoverlap"] = float(voiceoverlap)
-
-        return cls(**kwargs)
+        return converter.structure(note, cls)

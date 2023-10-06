@@ -15,6 +15,7 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Sound Synthesis",
 ]
 dependencies = [
+    "cattrs~=23.1.2",
     "chardet~=5.2.0",
     "librosa~=0.10.0",
     # librosa depends on numba which requires a specific version of numpy.

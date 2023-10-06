@@ -27,7 +27,7 @@ def db_to_amp(db: float) -> float:
     return 10 ** (db / 20)
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True)
 class Segment:
     """An array of audio samples.
 
