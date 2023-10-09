@@ -23,10 +23,10 @@ class Sample:
         cutoff: Region from the end of the sample to ignore.
             If negative, the cutoff is interpreted relative to the offset instead.
 
-        preutterance: Region where the sample should play before the actual note start.
+        preutterance: Region where the sample should play before the actual note starts.
             This is usually in the middle of the consonant region where the sample transitions from the consonant to the vowel.
 
-        overlap: Where the previous note's vowel fades out.
+        overlap: Region where the previous note's vowel fades out.
     """
 
     file: str

@@ -35,6 +35,22 @@ class Note:
 
         return self.lyric == "R"
 
+    def duration(self, bpm: float) -> float:
+        """Get the duration of the note in milliseconds.
+
+        Args:
+            bpm: The beats per minute.
+
+        Returns:
+            The millisecond duration.
+        """
+
+        # In UTAU, note lengths are represented in 4/4 as multiples of 30, where a whole note is 480.
+        beats = (self.length / 480) * 4
+        bpms = bpm / 60 / 1000
+
+        return beats / bpms
+
     def to_dict(self) -> dict[str, str]:
         """Serialize the note to a dict.
 
