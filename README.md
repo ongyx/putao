@@ -9,8 +9,7 @@ Originally, it was a joke inspired by [Composite]'s [Bad Apple] script but is no
 ## About
 
 putao uses UTAU voicebanks and UTAU Sequence Texts (USTs) for voice samples and song data.
-The key difference is that putao does not shell out to `resampler.exe`,
-or any other `.exe` compiled resampler/wavtool,
+The key difference is that putao does not shell out to `resampler.exe` or any other `.exe` compiled resampler/wavtool
 to ensure that it can be used cross-platform.
 
 putao is able to detect encoding as well, allowing the use of both Shift-JIS and UTF-8 voicebanks.

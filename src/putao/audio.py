@@ -70,6 +70,39 @@ class Segment:
 
         return len(self.array.shape)
 
+    def overlay(self, segment: Self, position: float = 0, times: int = -1) -> Self:
+        """Overlay an audio segment.
+
+        Args:
+            position: Where to start overlaying from.
+            times: How many times to loop the segment.
+                If less than 0, the segment is looped over the entire base segment.
+
+        Returns:
+            The overlaid base segment.
+        """
+
+        with self.spawn().mutable() as base:
+            size = len(segment)
+
+            # Begin overlap from position onwards.
+            chunk: Self
+            for chunk in base[position::size]:
+                if times == 0:
+                    break
+
+                seg = segment.array
+
+                # Slice the segment down to the chunk's size if it is larger.
+                if len(chunk) < size:
+                    seg = seg[: len(chunk.array)]
+
+                chunk.array[:] = np.mean(np.array([chunk.array, seg]), axis=0)
+
+                times -= 1
+
+            return base
+
     def append(self, segment: Self, crossfade: float = 100) -> Self:
         """Append an audio segment.
 
@@ -297,6 +330,12 @@ class Segment:
             return self.append(segment_or_gain, crossfade=0)
 
         return self.apply_gain(segment_or_gain)
+
+    def __mul__(self, segment_or_repeat: Self | int) -> Self:
+        if isinstance(segment_or_repeat, Segment):
+            return self.overlay(segment_or_repeat)
+
+        return self.spawn(np.repeat(self.array, segment_or_repeat, axis=0))
 
     def __getitem__(self, ms: float | slice) -> Any:
         if isinstance(ms, slice):
