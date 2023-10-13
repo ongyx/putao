@@ -1,3 +1,4 @@
+import dataclasses
 import io
 import pathlib
 import re
@@ -30,6 +31,7 @@ def _parse(line: str) -> ini.Section | ini.Property | None:
     return None
 
 
+@dataclasses.dataclass(slots=True)
 class Song:
     """An arrangement of notes.
 
@@ -40,30 +42,14 @@ class Song:
     * `#TRACKEND`: End of track marker.
 
     Attributes:
-        version: The UST version.
         settings: Rendering configuration for the UST.
         notes: The UST notes.
-
-    Args:
-        file: The UST file to parse into a song.
-
-    Raises:
-        ValueError: Parsing the UST file failed.
+        version: The UST version.
     """
 
-    version: str
-    settings: Settings
     notes: list[Note]
-
-    def __init__(self, file: Iterator[str]):
-        config = ini.load(file, parse_func=_parse)
-
-        self.version = config["#VERSION"]["version"]
-
-        self.settings = Settings.from_dict(config["#SETTING"])
-
-        # Assuming notes are in contiguous order.
-        self.notes = [Note.from_dict(p) for s, p in config.items() if RE_NOTE.match(s)]
+    settings: Settings
+    version: str = "1.2"
 
     def save(self, file: TextIO):
         """Save the song in UST format.
@@ -102,6 +88,31 @@ class Song:
             return buf.getvalue()
 
     @classmethod
+    def from_file(cls, file: Iterator[str]) -> Self:
+        """Parse a UST file.
+
+        Args:
+            file: The UST file or path to parse into a song.
+
+        Returns:
+            The parsed song.
+
+        Raises:
+            ValueError: Parsing the UST file failed.
+        """
+
+        config = ini.load(file, parse_func=_parse)
+
+        version = config["#VERSION"]["version"]
+
+        settings = Settings.from_dict(config["#SETTING"])
+
+        # Assuming notes are in contiguous order.
+        notes = [Note.from_dict(p) for s, p in config.items() if RE_NOTE.match(s)]
+
+        return cls(notes, settings, version=version)
+
+    @classmethod
     def from_str(cls, text: str) -> Self:
         """Parse a UST text into a song.
 
@@ -113,4 +124,4 @@ class Song:
         """
 
         with io.StringIO(text) as buf:
-            return cls(buf)
+            return cls.from_file(buf)

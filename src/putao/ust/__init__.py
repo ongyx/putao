@@ -2,3 +2,4 @@
 
 from .song import Song
 from .note import Note
+from .settings import Settings
