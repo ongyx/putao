@@ -1,3 +1,5 @@
+import io
+
 import numpy as np
 import pytest
 
@@ -16,6 +18,8 @@ def test_segment_slice():
     assert isinstance(part, audio.Segment)
     assert len(part) == 5000
 
+    assert len(SILENCE[0]) == 1
+
     for segment in SILENCE[::2500]:
         assert len(segment) == 2500
 
@@ -29,6 +33,8 @@ def test_segment_channels():
 
 
 def test_segment_immutable():
+    assert not SILENCE.mut
+
     with pytest.raises(ValueError):
         SILENCE.array[0] = 0
 
@@ -44,7 +50,23 @@ def test_segment_append():
     assert len(double_silence) == len(SILENCE) * 2
 
 
+def test_segment_repeat():
+    ten_fold = SILENCE * 10
+
+    assert len(ten_fold) == len(SILENCE) * 10
+
+
 def test_segment_spawn():
     spawn = SILENCE.spawn()
 
     assert spawn is not SILENCE
+
+
+def test_segment_export():
+    with io.BytesIO() as buf:
+        SILENCE.export(buf)
+        buf.seek(0)
+
+        silence = audio.Segment.from_file(buf)
+        assert np.array_equal(silence.array, SILENCE.array)
+        assert silence.srate == SILENCE.srate

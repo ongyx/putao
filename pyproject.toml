@@ -43,4 +43,5 @@ path = "src/putao/__init__.py"
 [tool.hatch.envs.test]
 dependencies = [
     "pytest",
+    "coverage"
 ]
