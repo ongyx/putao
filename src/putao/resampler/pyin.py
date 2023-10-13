@@ -1,3 +1,5 @@
+from typing import Self
+
 import librosa
 
 from .. import audio, oto, ust
@@ -8,25 +10,25 @@ from .base import Resampler
 class pYIN:
     """Resampler implementation based on librosa and the pYIN algorithm."""
 
-    f0: dict[oto.Sample, float]
-
     vb: oto.Voicebank
     song: ust.Song
 
-    def __init__(self):
-        self.f0 = {}
+    # Map of sample to (audio, f0).
+    cache: dict[oto.Sample, tuple[audio.Segment, float]]
 
-    def setup(self, vb: oto.Voicebank, song: ust.Song):
+    def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         self.vb = vb
         self.song = song
 
         # Get the F0 for each voice sample in the voicebank.
         for samp in vb:
-            try:
-                frq = vb.load_frq(samp)
-            except FileNotFoundError:
-                seg = vb.load(samp)
+            seg = vb.open(samp)
 
+            try:
+                with vb.path_to_frq(samp).open("rb") as f:
+                    frq = oto.Frq.load(f)
+
+            except FileNotFoundError:
                 f0, _, _ = librosa.pyin(
                     seg.array, fmin=55, fmax=1000, sr=seg.srate, frame_length=256
                 )
@@ -36,13 +38,12 @@ class pYIN:
                 with vb.path_to_frq(samp).open("wb") as f:
                     frq.dump(f)
 
-            self.f0[samp] = frq.average
+            self.cache[samp] = (seg, frq.average)
 
     def pitch(self, note: ust.Note) -> audio.Segment:
         samp = self.vb[note.lyric]
-        seg = self.vb.load(samp)
+        seg, f0 = self.cache[samp]
 
-        f0 = self.f0[samp]
         # Calculate the semitone steps between the target MIDI note and the F0.
         steps = note.notenum - oto.Pitch(f0).midi
 

@@ -1,3 +1,5 @@
+from typing import Self
+
 import librosa.effects
 
 from .. import audio, oto, ust
@@ -11,7 +13,7 @@ class Librosa:
     vb: oto.Voicebank
     song: ust.Song
 
-    def setup(self, vb: oto.Voicebank, song: ust.Song):
+    def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         self.vb = vb
         self.song = song
 

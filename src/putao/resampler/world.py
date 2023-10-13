@@ -40,35 +40,36 @@ class _Parameter:
 class World:
     """Resampler implementation based on the WORLD algorithm."""
 
-    params: dict[oto.Sample, _Parameter]
-
     vb: oto.Voicebank
     song: ust.Song
 
-    def __init__(self):
-        self.params = {}
+    # Map of sample to (segment, parameter).
+    cache: dict[oto.Sample, tuple[audio.Segment, _Parameter]]
 
-    def setup(self, vb: oto.Voicebank, song: ust.Song):
+    def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         self.vb = vb
         self.song = song
 
+        self.cache = {}
+
         for samp in vb:
-            path = vb.path_to_frq(samp).with_suffix(FRQ_EXT)
+            seg = vb.open(samp)
+            frq_path = vb.path_to_frq(samp).with_suffix(FRQ_EXT)
 
             try:
-                param = _Parameter.read_from(path)
+                param = _Parameter.read_from(frq_path)
             except FileNotFoundError:
-                seg = vb.load(samp)
                 param = _Parameter.analyze(seg)
-                param.write_to(path)
+                param.write_to(frq_path)
 
-            self.params[samp] = param
+            self.cache[samp] = (seg, param)
+
+        return self
 
     def pitch(self, note: ust.Note) -> audio.Segment:
         samp = self.vb[note.lyric]
-        seg = self.vb.load(samp)
+        seg, param = self.cache[samp]
 
-        param = self.params[samp]
         # Shift the F0 parameter by offset.
         offset = note.pitch - param.f0_avg
 

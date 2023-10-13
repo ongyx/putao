@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Callable, Protocol, Self
 
 from .. import audio, oto, ust
 
@@ -10,12 +10,13 @@ class Wavtool(Protocol):
     then stretches or repeats the vowel to fit the length of a note.
     """
 
-    def setup(self, vb: oto.Voicebank, song: ust.Song):
+    def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         """Setup the wavtool with parameters from the song and/or voicebank.
 
         Args:
             vb: The voicebank to load voice samples from.
             song: The UST song.
+            config: Resampler specific configuration.
         """
         ...
 

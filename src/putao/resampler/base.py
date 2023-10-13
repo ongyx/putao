@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Callable, Protocol, Self
 
 from .. import audio, oto, ust
 
@@ -12,12 +12,13 @@ class Resampler(Protocol):
     * Applying ADSR envelopes and filters.
     """
 
-    def setup(self, vb: oto.Voicebank, song: ust.Song):
+    def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         """Setup the resampler with parameters from the song and/or voicebank.
 
         Args:
             vb: The voicebank to load voice samples from.
             song: The UST song.
+            config: Resampler specific configuration.
         """
         ...
 

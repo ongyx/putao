@@ -81,7 +81,7 @@ class Voicebank(UserDict[str, Sample]):
         """Return the absolute path to the sample's audio file.
 
         Args:
-            sample: The sample to get the audio file path for.
+            sample: The sample or sample alias to get the audio file path for.
 
         Returns:
             The absolute path.
@@ -89,12 +89,11 @@ class Voicebank(UserDict[str, Sample]):
 
         return self.dir / sample.file
 
-    @functools.cache
-    def load(self, sample: Sample) -> audio.Segment:
-        """Load a sample as an audio segment.
+    def open(self, sample: Sample) -> audio.Segment:
+        """Open a sample as an audio segment.
 
         Args:
-            sample: The sample to load the audio segment for.
+            sample: The sample to open.
 
         Returns:
             The audio segment.
@@ -117,20 +116,6 @@ class Voicebank(UserDict[str, Sample]):
         name = path.stem + path.suffix.replace(".", "_") + ".frq"
 
         return self.dir / name
-
-    @functools.cache
-    def load_frq(self, sample: Sample) -> Frq:
-        """Load a sample's frequency map.
-
-        Args:
-            sample: The sample to load the frequency map for.
-
-        Returns:
-            The frequency map.
-        """
-
-        with self.path_to_frq(sample).open("rb") as f:
-            return Frq.load(f)
 
     def __iter__(self) -> Iterator[Sample]:
         return iter(self.data.values())
