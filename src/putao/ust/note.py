@@ -5,7 +5,7 @@ import cattrs
 
 import numpy as np
 
-from ..oto import Voicebank, Pitch, Frq
+from ..oto import Pitch
 
 from ._conv import converter
 
@@ -30,6 +30,13 @@ class Note:
     preutterance: float | None = None
     voiceoverlap: float | None = None
 
+    @property
+    def pitch(self) -> float:
+        """Get the note's MIDI number as a frequency in hertz."""
+
+        return Pitch.from_midi(self.notenum).frequency
+
+    @property
     def is_rest(self) -> bool:
         """Check if the note is a rest."""
 
