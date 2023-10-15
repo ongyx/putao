@@ -13,7 +13,7 @@ from typing import Literal, Self, TextIO
 
 Config = dict[str, dict[str, str]]
 
-REGEX = re.compile(
+RE_INI = re.compile(
     r"""
     # Anchor to the start of the line.
     ^
@@ -55,7 +55,7 @@ def parse(line: str) -> Section | Property | None:
         A section, property, or None if the line failed to parse.
     """
 
-    if m := REGEX.match(line):
+    if m := RE_INI.match(line):
         if section := m["section"]:
             return Section(section)
         else:

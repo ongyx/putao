@@ -26,7 +26,7 @@ class _Parameter:
         self.f0_avg = np.nanmean(self.f0)
 
     def write_to(self, file: pathlib.Path):
-        np.savez_compressed(file, **dataclasses.asdict(self))
+        np.savez_compressed(file, f0=self.f0, sp=self.sp, ap=self.ap)
 
     @classmethod
     def read_from(cls, file: pathlib.Path):
@@ -44,7 +44,7 @@ class World:
     song: ust.Song
 
     # Map of sample to (segment, parameter).
-    cache: dict[oto.Sample, tuple[audio.Segment, _Parameter]]
+    cache: dict[oto.Sample, _Parameter]
 
     def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         self.vb = vb
@@ -62,13 +62,11 @@ class World:
                 param = _Parameter.analyze(seg)
                 param.write_to(frq_path)
 
-            self.cache[samp] = (seg, param)
+            self.cache[samp] = param
 
-        return self
-
-    def pitch(self, note: ust.Note) -> audio.Segment:
+    def pitch(self, note: ust.Note, seg: audio.Segment) -> audio.Segment:
         samp = self.vb[note.lyric]
-        seg, param = self.cache[samp]
+        param = self.cache[samp]
 
         # Shift the F0 parameter by offset.
         offset = note.pitch - param.f0_avg

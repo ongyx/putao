@@ -47,7 +47,7 @@ class Sample:
             A tuple of the consonant and vowel regions.
         """
 
-        cutoff = self.cutoff
+        cutoff = -self.cutoff
         if cutoff > 0:
             cutoff += self.offset
 

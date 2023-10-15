@@ -9,6 +9,7 @@ import dataclasses
 import pathlib
 from typing import IO, Any, BinaryIO, Iterator, Literal, Self
 
+import librosa
 import numpy as np
 import soundfile
 from numpy.typing import NDArray
@@ -68,7 +69,12 @@ class Segment:
         Typically, audio segments only have 1 (mono) or 2 (stereo) channels.
         """
 
-        return len(self.array.shape)
+        shape = self.array.shape
+
+        if len(shape) == 2:
+            return shape[0]
+
+        return 1
 
     def overlay(self, segment: Self, position: float = 0, times: int = -1) -> Self:
         """Overlay an audio segment.
@@ -103,46 +109,69 @@ class Segment:
 
             return base
 
-    def append(self, segment: Self, crossfade: float = 100) -> Self:
-        """Append an audio segment.
+    def append(self, *segments: Self, crossfade: float = 100) -> Self:
+        """Append one or more audio segments.
 
         Args:
-            segment: The segment to append.
-            crossfade: Length in milliseconds to crossfade the original and appended segment.
+            segments: The segments to append.
+            crossfade: Length in milliseconds to crossfade the original and appended segments.
                 Defaults to 0.1ms.
 
         Returns:
             The new segment.
 
         Raises:
-            ValueError: crossfade is longer than the original or appended segment.
+            ValueError: crossfade is longer than the original or appended segments, or it overlaps into the previous one.
         """
+
+        # No segments to append.
+        if not segments:
+            return self
+
+        segments = (self, *segments)
 
         if not crossfade:
             # One segment after the other.
-            return self.spawn(np.concatenate([self.array, segment.array], axis=0))
+            return self.spawn(np.hstack([s.array for s in segments]))
 
-        self_len = len(self)
-        seg_len = len(segment)
-        if crossfade > self_len or crossfade > seg_len:
+        # Calculate the size of the buffer needed to crossfade all segments.
+        buf_len = sum(len(s) for s in segments) - ((len(segments) - 1) * crossfade)
+
+        print(buf_len)
+
+        if buf_len <= 0:
             raise ValueError(
-                f"crossfade is longer than self or segment (crossfade={crossfade}ms, self={self_len}ms, segment={seg_len}ms)"
+                f"crossfade is longer than segments or overlaps with the previous one"
             )
 
-        # Fade the crossfade region and take the mean to overlay them.
-        faded = np.mean(
-            np.array(
-                [
-                    self[-crossfade:].fade(to_gain=-120),
-                    segment[:crossfade].fade(from_gain=-120),
-                ]
-            )
-        )
+        with self.silent(buf_len).mutable() as buf:
+            offset = 0
 
-        # Concatenate the other regions with the crossfade.
-        return self.spawn(
-            np.concatenate([self[:-crossfade].array, faded, segment[crossfade:].array])
-        )
+            for seg in segments:
+                if offset > 0:
+                    # Get the crossfade for the previous segment and the current one.
+                    window: Self = buf[offset - crossfade : offset]
+                    current: Self = seg[:crossfade]
+
+                    # Fade the crossfade region and take the mean to overlay them.
+                    window.array = np.mean(
+                        np.vstack(
+                            [
+                                window.fade(to_gain=-120).array,
+                                current.fade(from_gain=-120).array,
+                            ]
+                        )
+                    )
+
+                    # Copy over the rest of the segment.
+                    buf[offset + crossfade].array = seg[crossfade:]
+                else:
+                    # This is the first segment, so no crossfading is needed.
+                    buf[offset:].array = seg.array
+
+                offset += len(seg)
+
+        return buf
 
     def apply_gain(self, db: float) -> Self:
         """Apply a uniform gain.
@@ -264,12 +293,17 @@ class Segment:
             The copied audio segment.
         """
 
-        if array is None:
-            # Create a copy of the underlying array.
-            array = self.array.copy()
+        srate = srate or self.srate
 
-        if srate is None:
-            srate = self.srate
+        if array is None:
+            if srate != self.srate:
+                # Resample array to match the new sample rate.
+                array = librosa.resample(
+                    self.array, orig_sr=self.srate, target_sr=srate
+                )
+            else:
+                # Plain copy.
+                array = self.array.copy()
 
         return Segment(array, srate)
 

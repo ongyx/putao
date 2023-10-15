@@ -22,7 +22,7 @@ class Resampler(Protocol):
         """
         ...
 
-    def pitch(self, note: ust.Note) -> audio.Segment:
+    def pitch(self, note: ust.Note, seg: audio.Segment) -> audio.Segment:
         """Load the voice sample of note and pitch-shift it to the note's MIDI value.
 
         Implementations must be thread-safe.

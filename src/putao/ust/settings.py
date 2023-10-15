@@ -30,8 +30,8 @@ class Settings:
     cachedir: str
     tool1: str
     tool2: str
-    mode2: bool
-    flags: str
+    mode2: bool = False
+    flags: str | None = None
 
     def to_dict(self) -> dict[str, str]:
         """Serialize the settings to a dict.

@@ -14,11 +14,13 @@ class pYIN:
     song: ust.Song
 
     # Map of sample to (audio, f0).
-    cache: dict[oto.Sample, tuple[audio.Segment, float]]
+    cache: dict[oto.Sample, float]
 
     def __init__(self, vb: oto.Voicebank, song: ust.Song, **config):
         self.vb = vb
         self.song = song
+
+        self.cache = {}
 
         # Get the F0 for each voice sample in the voicebank.
         for samp in vb:
@@ -38,11 +40,11 @@ class pYIN:
                 with vb.path_to_frq(samp).open("wb") as f:
                     frq.dump(f)
 
-            self.cache[samp] = (seg, frq.average)
+            self.cache[samp] = frq.average
 
-    def pitch(self, note: ust.Note) -> audio.Segment:
+    def pitch(self, note: ust.Note, seg: audio.Segment) -> audio.Segment:
         samp = self.vb[note.lyric]
-        seg, f0 = self.cache[samp]
+        f0 = self.cache[samp]
 
         # Calculate the semitone steps between the target MIDI note and the F0.
         steps = note.notenum - oto.Pitch(f0).midi

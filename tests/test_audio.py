@@ -49,6 +49,12 @@ def test_segment_append():
 
     assert len(double_silence) == len(SILENCE) * 2
 
+    faded = SILENCE.append(SILENCE, crossfade=1000)
+    assert len(faded) == (len(SILENCE) * 2) - 1000
+
+    with pytest.raises(ValueError):
+        SILENCE.append(SILENCE, crossfade=10001)
+
 
 def test_segment_repeat():
     ten_fold = SILENCE * 10
