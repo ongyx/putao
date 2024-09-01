@@ -129,3 +129,4 @@ MIT.
 [Bad Apple]: https://github.com/Composite1618/CompositeMemes/
 [pyworld]: https://github.com/JeremyCCHsu/Python-Wrapper-for-World-Vocoder
 [Music Macro Language]: https://en.wikipedia.org/wiki/Music_Macro_Language
+[flit]: https://flit.pypa.io/en/stable
